@@ -48,12 +48,18 @@ class Character(private val sprite: Sprite, val speed: Float) {
     fun update(delta: Float) {
         val current = Vector2(posX, posY)
         val target = Vector2(targetX, targetY)
+        val distance = current.dst(target)
 
-        if (current.dst(target) > 1f) {
-            val move = target.sub(current).nor().scl(speed * delta)
+        if (distance > 0.5f) {
+            val movementAmount = speed * delta
 
-            posX += move.x
-            posY += move.y
+            if (movementAmount >= distance) {
+                snapTo(targetX, targetY)
+            } else {
+                val move = target.sub(current).nor().scl(movementAmount)
+                posX += move.x
+                posY += move.y
+            }
         }
     }
 
@@ -118,6 +124,7 @@ class GameScreen : KtxScreen {
         players = List(3) { i ->
             val sprite = Sprite(playerTexture)
             sprite.color = playerColours[i]
+            sprite.setSize(128f, 128f)
             val character = Character(sprite, 300.toFloat())
             character.snapTo(spawnPoints[i].x, spawnPoints[i].y)
             character
