@@ -145,10 +145,47 @@ class GameScreen : KtxScreen {
         if (Gdx.input.isKeyPressed(Input.Keys.S)) newPosition.y -= moveSpeed
         if (Gdx.input.isKeyPressed(Input.Keys.D)) newPosition.x += moveSpeed
 
+        newPosition.x = newPosition.x.coerceIn(playerTexture.width/2f, mapWidth - playerTexture.width/2f)
+        newPosition.y = newPosition.y.coerceIn(playerTexture.height/2f, mapWidth - playerTexture.height/2f)
+
+        if (oldPosition != newPosition) {
+            val message = Message(playerID, newPosition.x, newPosition.y)
+            players[playerID].update(message)
+            val byes = "${playerID},${newPosition.x},${newPosition.y}".toByteArray()
+            coroutineScope.launch {
+                delay(100)
+                tcpSocket.getOutputStream().write(byes)
+            }
+        }
+
+        while (queue.isNotEmpty()) {
+            val queueMsg = queue.poll()
+            if (queueMsg != null) {
+                players[queueMsg.id].update(queueMsg)
+            }
+        }
+    }
+
+    private fun draw(delta: Float) {
+        clearScreen(red = 0.7f, green = 0.7f, blue = 0.7f)
+        batch.use {
+            for (player in players) {
+                player.draw(it)
+            }
+        }
+    }
+
+    override fun resize(width: Int, height: Int) {
+        super.resize(width, height)
+        viewport.update(width, height)
+        camera.update()
+        mapWidth = width.toFloat()
+        mapHeight = height.toFloat()
     }
 
     override fun dispose() {
         image.disposeSafely()
+        playerTexture.disposeSafely()
         batch.disposeSafely()
     }
 }
