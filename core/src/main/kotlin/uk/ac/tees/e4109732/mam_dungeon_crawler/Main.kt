@@ -1,7 +1,6 @@
 package uk.ac.tees.e4109732.mam_dungeon_crawler
 
 import com.badlogic.gdx.Gdx
-import com.badlogic.gdx.Input
 import com.badlogic.gdx.graphics.OrthographicCamera
 import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
@@ -24,7 +23,6 @@ import ktx.graphics.use
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import java.net.InterfaceAddress
 import java.net.Socket
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -39,30 +37,42 @@ class Main : KtxGame<KtxScreen>() {
 
 data class Message(var id: Int, var posX: Float, var posY: Float)
 
-class Character(
-    private val sprite: Sprite,
-    val speed: Int
-) {
+class Character(private val sprite: Sprite, val speed: Float) {
     var posX: Float = 0f
         private set
     var posY: Float = 0f
         private set
+    var targetX: Float = 0f
+    var targetY: Float = 0f
 
-    fun update(message: Message) {
-        posX = message.posX
-        posY = message.posY
+    fun update(delta: Float) {
+        val current = Vector2(posX, posY)
+        val target = Vector2(targetX, targetY)
+
+        if (current.dst(target) > 1f) {
+            val move = target.sub(current).nor().scl(speed * delta)
+
+            posX += move.x
+            posY += move.y
+        }
+    }
+
+    fun snapTo(x: Float, y: Float) {
+        posX = x
+        posY = y
+        targetX = x
+        targetY = y
     }
 
     fun draw(batch: SpriteBatch) {
-        sprite.x = posX - sprite.texture.width / 2
-        sprite.y = posY - sprite.texture.height / 2
+        sprite.setPosition(posX - sprite.width / 2, posY - sprite.height / 2)
         sprite.draw(batch)
     }
 }
 
 class GameScreen : KtxScreen {
     private val playerTexture = Texture("circle.png".toInternalFile(), true).apply {  }
-    private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) } // Maybe remove
+    private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
     private val batch = SpriteBatch()
     private lateinit var players: List<Character>
     private val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
@@ -73,7 +83,7 @@ class GameScreen : KtxScreen {
     private var mapHeight: Float = 1080f
     private var playerID: Int = 0
     private lateinit var tcpSocket: Socket
-    private val playerColours = ListOf(
+    private val playerColours = listOf(
         com.badlogic.gdx.graphics.Color.BROWN,
         com.badlogic.gdx.graphics.Color.GREEN,
         com.badlogic.gdx.graphics.Color.BLUE,
@@ -95,7 +105,7 @@ class GameScreen : KtxScreen {
 
         val datagramSocket = DatagramSocket()
         datagramSocket.send(DatagramPacket("HELLO".toByteArray(), 5,
-            InetAddress.getByName("localhost"), 4301))
+            InetAddress.getByName("10.0.2.2"), 4301))
 
         val buffer = ByteArray(1024)
         val packet = DatagramPacket(buffer, buffer.size)
@@ -108,8 +118,8 @@ class GameScreen : KtxScreen {
         players = List(3) { i ->
             val sprite = Sprite(playerTexture)
             sprite.color = playerColours[i]
-            val character = Character(sprite, 300)
-            character.update(Message(i, spawnPoints[i].x, spawnPoints[i].y))
+            val character = Character(sprite, 300.toFloat())
+            character.snapTo(spawnPoints[i].x, spawnPoints[i].y)
             character
         }
 
@@ -132,42 +142,38 @@ class GameScreen : KtxScreen {
 
     override fun render(delta: Float) {
         logic(delta)
-        draw(delta)
+        draw()
     }
 
     private fun logic(delta: Float) {
-        super.show()
-        val moveSpeed = delta * players[playerID].speed
-        val oldPosition = Vector2(players[playerID].posX, players[playerID].posY)
-        val newPosition = Vector2(players[playerID].posX, players[playerID].posY)
-        if (Gdx.input.isKeyPressed(Input.Keys.W)) newPosition.y += moveSpeed
-        if (Gdx.input.isKeyPressed(Input.Keys.A)) newPosition.x -= moveSpeed
-        if (Gdx.input.isKeyPressed(Input.Keys.S)) newPosition.y -= moveSpeed
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) newPosition.x += moveSpeed
+        if (Gdx.input.isTouched) {
+            val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
 
-        newPosition.x = newPosition.x.coerceIn(playerTexture.width/2f, mapWidth - playerTexture.width/2f)
-        newPosition.y = newPosition.y.coerceIn(playerTexture.height/2f, mapWidth - playerTexture.height/2f)
+            players[playerID].targetX = touch.x
+            players[playerID].targetY = touch.y
 
-        if (oldPosition != newPosition) {
-            val message = Message(playerID, newPosition.x, newPosition.y)
-            players[playerID].update(message)
-            val byes = "${playerID},${newPosition.x},${newPosition.y}".toByteArray()
-            coroutineScope.launch {
-                delay(100)
-                tcpSocket.getOutputStream().write(byes)
+            coroutineScope.launch(Dispatchers.IO) {
+                val message = "$playerID,${touch.x},${touch.y}"
+                tcpSocket.getOutputStream().write(message.toByteArray())
             }
+        }
+
+        for (player in players) {
+            player.update(delta)
         }
 
         while (queue.isNotEmpty()) {
             val queueMsg = queue.poll()
-            if (queueMsg != null) {
-                players[queueMsg.id].update(queueMsg)
+            if (queueMsg != null && queueMsg.id != playerID) {
+                players[queueMsg.id].targetX = queueMsg.posX
+                players[queueMsg.id].targetY = queueMsg.posY
             }
         }
     }
 
-    private fun draw(delta: Float) {
+    private fun draw() {
         clearScreen(red = 0.7f, green = 0.7f, blue = 0.7f)
+        batch.projectionMatrix = camera.combined
         batch.use {
             for (player in players) {
                 player.draw(it)
