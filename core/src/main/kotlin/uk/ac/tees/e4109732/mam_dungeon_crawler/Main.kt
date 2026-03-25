@@ -7,7 +7,6 @@ import com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
 import com.badlogic.gdx.graphics.g2d.Sprite
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.math.Vector2
-import com.badlogic.gdx.utils.viewport.ScreenViewport
 import com.badlogic.gdx.utils.viewport.Viewport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +24,9 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.Socket
 import java.util.concurrent.ConcurrentLinkedQueue
+import com.badlogic.gdx.maps.tiled.TmxMapLoader
+import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer
+import com.badlogic.gdx.utils.viewport.FitViewport
 
 class Main : KtxGame<KtxScreen>() {
     override fun create() {
@@ -77,6 +79,8 @@ class Character(private val sprite: Sprite, val speed: Float) {
 }
 
 class GameScreen : KtxScreen {
+    private val map = TmxMapLoader().load("Maps/PathfindingDemoRoom.tmx")
+    private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE)
     private val playerTexture = Texture("circle.png".toInternalFile(), true).apply {  }
     private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
     private val batch = SpriteBatch()
@@ -85,8 +89,8 @@ class GameScreen : KtxScreen {
     private val queue = ConcurrentLinkedQueue<Message>()
     private lateinit var camera: OrthographicCamera
     private lateinit var viewport: Viewport
-    private var mapWidth: Float = 2400f
-    private var mapHeight: Float = 1080f
+    private var mapWidth: Float = 20f
+    private var mapHeight: Float = 11f
     private var playerID: Int = 0
     private lateinit var tcpSocket: Socket
     private val playerColours = listOf(
@@ -95,19 +99,17 @@ class GameScreen : KtxScreen {
         com.badlogic.gdx.graphics.Color.BLUE,
     )
     private val spawnPoints = listOf(
-        Vector2(700f, 500f),
-        Vector2(700f, 100f),
-        Vector2(100f, 500f),
+        Vector2(5f, 5f),
+        Vector2(2f, 2f),
+        Vector2(18f, 9f),
     )
 
     override fun show() {
         camera = OrthographicCamera()
-        mapWidth = Gdx.graphics.width.toFloat()
-        mapHeight = Gdx.graphics.height.toFloat()
-        camera = OrthographicCamera(mapWidth, mapHeight)
-        camera.setToOrtho(false)
-        viewport = ScreenViewport(camera)
-        viewport.update(mapWidth.toInt(), mapHeight.toInt(), true)
+        viewport = FitViewport(mapWidth, mapHeight, camera)
+        camera.position.set(mapWidth / 2, mapHeight / 2, 0f)
+        camera.update()
+        viewport.update(Gdx.graphics.width, Gdx.graphics.height, true)
 
         val datagramSocket = DatagramSocket()
         datagramSocket.send(DatagramPacket("HELLO".toByteArray(), 5,
@@ -124,9 +126,9 @@ class GameScreen : KtxScreen {
         players = List(3) { i ->
             val sprite = Sprite(playerTexture)
             sprite.color = playerColours[i]
-            sprite.setSize(128f, 128f)
-            val character = Character(sprite, 300.toFloat())
-            character.snapTo(spawnPoints[i].x, spawnPoints[i].y)
+            sprite.setSize(1f, 1f)
+            val character = Character(sprite, 5f)
+            character.snapTo(spawnPoints[i].x * Constants.UNIT_SCALE, spawnPoints[i].y * Constants.UNIT_SCALE)
             character
         }
 
@@ -148,8 +150,17 @@ class GameScreen : KtxScreen {
     }
 
     override fun render(delta: Float) {
+        clearScreen(red = 0f, green = 0f, blue = 0f)
+        renderer.setView(camera)
+        renderer.render()
+
+        batch.use(camera.combined) {
+            for (player in players) {
+                player.draw(it)
+            }
+        }
+
         logic(delta)
-        draw()
     }
 
     private fun logic(delta: Float) {
@@ -178,25 +189,15 @@ class GameScreen : KtxScreen {
         }
     }
 
-    private fun draw() {
-        clearScreen(red = 0.7f, green = 0.7f, blue = 0.7f)
-        batch.projectionMatrix = camera.combined
-        batch.use {
-            for (player in players) {
-                player.draw(it)
-            }
-        }
-    }
-
     override fun resize(width: Int, height: Int) {
         super.resize(width, height)
         viewport.update(width, height)
         camera.update()
-        mapWidth = width.toFloat()
-        mapHeight = height.toFloat()
     }
 
     override fun dispose() {
+        map.disposeSafely()
+        renderer.disposeSafely()
         image.disposeSafely()
         playerTexture.disposeSafely()
         batch.disposeSafely()
