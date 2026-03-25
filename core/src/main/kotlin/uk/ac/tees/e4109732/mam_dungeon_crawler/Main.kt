@@ -150,22 +150,23 @@ class GameScreen : KtxScreen {
 
         coroutineScope.launch {
             try {
+                val factory = GameMessageFactory()
                 while (true) {
-                    val readBuffer = ByteArray(12)
+                    val readBuffer = ByteArray(13)
                     var bytesRead = 0
 
-                    while (bytesRead < 12) {
-                        val result = inputStream.read(readBuffer, bytesRead, 12 - bytesRead)
+                    while (bytesRead < 13) {
+                        val result = inputStream.read(readBuffer, bytesRead, 13 - bytesRead)
                         if (result == -1) break
                         bytesRead += result
                     }
 
-                    if (bytesRead == 12) {
-                        val bb = ByteBuffer.wrap(readBuffer).order(ByteOrder.LITTLE_ENDIAN)
-                        val id = bb.int
-                        val posX = bb.float
-                        val posY = bb.float
-                        queue.add(Message(id, posX, posY))
+                    if (bytesRead == 13) {
+                        val msg = factory.create(readBuffer)
+
+                        if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) {
+                            queue.add(Message(msg.id, msg.posX, msg.posY))
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -197,12 +198,10 @@ class GameScreen : KtxScreen {
             players[playerID].targetY = touch.y
 
             coroutineScope.launch(Dispatchers.IO) {
-                val buffer = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-                buffer.putInt(playerID)
-                buffer.putFloat(touch.x)
-                buffer.putFloat(touch.y)
+                val moveMsg = GameMessage.PlayerMoveMessage(playerID, touch.x, touch.y)
+                val bytes = moveMsg.serialise()
 
-                tcpSocket.getOutputStream().write(buffer.array())
+                tcpSocket.getOutputStream().write(bytes)
                 tcpSocket.getOutputStream().flush()
             }
         }
