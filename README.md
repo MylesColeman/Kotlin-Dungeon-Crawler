@@ -1,4 +1,8 @@
-# Dungeon Crawler
+# Dungeon Crawler (WIP)
+
+Dungeon Crawler game, developed as part of my Mobile and Multiplayer module at Teesside University. 
+
+*This repository will eventually be merged into the Dungeon Crawler Game Server.*
 
 A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
 
