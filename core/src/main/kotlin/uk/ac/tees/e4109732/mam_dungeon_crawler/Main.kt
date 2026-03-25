@@ -31,6 +31,8 @@ import com.badlogic.gdx.utils.viewport.FitViewport
 import ktx.tiled.type
 import ktx.tiled.x
 import ktx.tiled.y
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class Main : KtxGame<KtxScreen>() {
     override fun create() {
@@ -131,7 +133,7 @@ class GameScreen : KtxScreen {
             totalIdBytesRead += read
         }
 
-        val idBuffer = java.nio.ByteBuffer.wrap(idBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val idBuffer = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN)
         playerID = idBuffer.int
         Gdx.app.log("NETWORK", "Assigned Player ID: $playerID")
 
@@ -159,7 +161,7 @@ class GameScreen : KtxScreen {
                     }
 
                     if (bytesRead == 12) {
-                        val bb = java.nio.ByteBuffer.wrap(readBuffer).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        val bb = ByteBuffer.wrap(readBuffer).order(ByteOrder.LITTLE_ENDIAN)
                         val id = bb.int
                         val posX = bb.float
                         val posY = bb.float
@@ -195,7 +197,7 @@ class GameScreen : KtxScreen {
             players[playerID].targetY = touch.y
 
             coroutineScope.launch(Dispatchers.IO) {
-                val buffer = java.nio.ByteBuffer.allocate(12).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                val buffer = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
                 buffer.putInt(playerID)
                 buffer.putFloat(touch.x)
                 buffer.putFloat(touch.y)
