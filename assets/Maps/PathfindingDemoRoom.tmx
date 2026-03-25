@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="20" height="11" tilewidth="8" tileheight="8" infinite="0" nextlayerid="8" nextobjectid="39">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="20" height="11" tilewidth="8" tileheight="8" infinite="0" nextlayerid="9" nextobjectid="41">
  <tileset firstgid="1" source="MicroDungeon.tsx"/>
  <layer id="2" name="Background" width="20" height="11">
   <data encoding="csv">
@@ -83,6 +83,14 @@
   </object>
   <object id="38" x="80" y="40">
    <polyline points="0,0 16,0 16,-8 24,-8 24,0 40,0 40,8 24,8 24,16 16,16 16,8 0,8 0,0"/>
+  </object>
+ </objectgroup>
+ <objectgroup id="8" name="Spawn_Points">
+  <object id="39" name="PlayerOne" type="SpawnPoint" x="28" y="76">
+   <point/>
+  </object>
+  <object id="40" name="PlayerTwo" type="SpawnPoint" x="36" y="76">
+   <point/>
   </object>
  </objectgroup>
 </map>

@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
 import com.badlogic.gdx.graphics.g2d.Sprite
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
+import com.badlogic.gdx.maps.objects.PointMapObject
 import com.badlogic.gdx.math.Vector2
 import com.badlogic.gdx.utils.viewport.Viewport
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import com.badlogic.gdx.maps.tiled.TmxMapLoader
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer
 import com.badlogic.gdx.utils.viewport.FitViewport
+import ktx.tiled.type
+import ktx.tiled.x
+import ktx.tiled.y
 
 class Main : KtxGame<KtxScreen>() {
     override fun create() {
@@ -96,12 +100,6 @@ class GameScreen : KtxScreen {
     private val playerColours = listOf(
         com.badlogic.gdx.graphics.Color.BROWN,
         com.badlogic.gdx.graphics.Color.GREEN,
-        com.badlogic.gdx.graphics.Color.BLUE,
-    )
-    private val spawnPoints = listOf(
-        Vector2(5f, 5f),
-        Vector2(2f, 2f),
-        Vector2(18f, 9f),
     )
 
     override fun show() {
@@ -110,6 +108,10 @@ class GameScreen : KtxScreen {
         camera.position.set(mapWidth / 2, mapHeight / 2, 0f)
         camera.update()
         viewport.update(Gdx.graphics.width, Gdx.graphics.height, true)
+
+        val spawnLayer = map.layers["Spawn_Points"]?.objects ?: throw Exception("Spawn_Points layer not found")
+        val spawnPoints = spawnLayer.filterIsInstance<PointMapObject>()
+            .filter { it.type == "SpawnPoint" }
 
         val datagramSocket = DatagramSocket()
         datagramSocket.send(DatagramPacket("HELLO".toByteArray(), 5,
@@ -123,12 +125,15 @@ class GameScreen : KtxScreen {
         var bytes = ByteArray(4)
         inputStream.read(bytes)
         playerID = bytes[0].toInt()
-        players = List(3) { i ->
+        players = List(2) { i ->
             val sprite = Sprite(playerTexture)
             sprite.color = playerColours[i]
             sprite.setSize(1f, 1f)
             val character = Character(sprite, 5f)
-            character.snapTo(spawnPoints[i].x * Constants.UNIT_SCALE, spawnPoints[i].y * Constants.UNIT_SCALE)
+            val spawnX = spawnPoints[i].x * Constants.UNIT_SCALE
+            val spawnY = spawnPoints[i].y * Constants.UNIT_SCALE
+
+            character.snapTo(spawnX, spawnY)
             character
         }
 
