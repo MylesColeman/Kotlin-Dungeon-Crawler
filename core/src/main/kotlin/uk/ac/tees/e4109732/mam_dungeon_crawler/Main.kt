@@ -122,13 +122,22 @@ class GameScreen : KtxScreen {
         datagramSocket.receive(packet)
         tcpSocket = Socket(packet.address, 4300)
         val inputStream = tcpSocket.getInputStream()
-        var bytes = ByteArray(4)
-        inputStream.read(bytes)
-        playerID = bytes[0].toInt()
+        val idBytes = ByteArray(4)
+        var totalIdBytesRead = 0
+
+        while (totalIdBytesRead < 4) {
+            val read = inputStream.read(idBytes, totalIdBytesRead, 4 - totalIdBytesRead)
+            if (read == -1) throw Exception("Socket closed before Player ID was received")
+            totalIdBytesRead += read
+        }
+
+        val idBuffer = java.nio.ByteBuffer.wrap(idBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        playerID = idBuffer.int
+        Gdx.app.log("NETWORK", "Assigned Player ID: $playerID")
+
         players = List(2) { i ->
-            val sprite = Sprite(playerTexture)
+            val sprite = Sprite(playerTexture). apply { setSize(1f, 1f) }
             sprite.color = playerColours[i]
-            sprite.setSize(1f, 1f)
             val character = Character(sprite, 5f)
             val spawnX = spawnPoints[i].x * Constants.UNIT_SCALE
             val spawnY = spawnPoints[i].y * Constants.UNIT_SCALE
@@ -138,19 +147,29 @@ class GameScreen : KtxScreen {
         }
 
         coroutineScope.launch {
-            while (true) {
-                bytes = ByteArray(1024)
-                val length = inputStream.read(bytes)
-                if (length > 0) {
-                    val message = String(bytes, 0, length).split(",")
-                    if (message.size == 3) {
-                        val id = message[0].toInt()
-                        val posX = message[1].toFloat()
-                        val posY = message[2].toFloat()
+            try {
+                while (true) {
+                    val readBuffer = ByteArray(12)
+                    var bytesRead = 0
+
+                    while (bytesRead < 12) {
+                        val result = inputStream.read(readBuffer, bytesRead, 12 - bytesRead)
+                        if (result == -1) break
+                        bytesRead += result
+                    }
+
+                    if (bytesRead == 12) {
+                        val bb = java.nio.ByteBuffer.wrap(readBuffer).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        val id = bb.int
+                        val posX = bb.float
+                        val posY = bb.float
                         queue.add(Message(id, posX, posY))
                     }
                 }
+            } catch (e: Exception) {
+                Gdx.app.error("NETWORK", "Connection Lost: ${e.message}")
             }
+
         }
     }
 
@@ -176,8 +195,13 @@ class GameScreen : KtxScreen {
             players[playerID].targetY = touch.y
 
             coroutineScope.launch(Dispatchers.IO) {
-                val message = "$playerID,${touch.x},${touch.y}"
-                tcpSocket.getOutputStream().write(message.toByteArray())
+                val buffer = java.nio.ByteBuffer.allocate(12).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                buffer.putInt(playerID)
+                buffer.putFloat(touch.x)
+                buffer.putFloat(touch.y)
+
+                tcpSocket.getOutputStream().write(buffer.array())
+                tcpSocket.getOutputStream().flush()
             }
         }
 
