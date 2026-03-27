@@ -1,0 +1,39 @@
+DungeonCrawlerEntities.png
+	size: 128, 16
+	repeat: none
+walk_down
+	index: 2
+	bounds: 1, 1, 7, 8
+	offsets: 0, 0, 8, 8
+walk_down
+	index: 1
+	bounds: 19, 1, 7, 8
+	offsets: 0, 0, 8, 8
+walk_down
+	index: 0
+	bounds: 37, 2, 7, 7
+	offsets: 0, 0, 8, 8
+walk_horizontal
+	index: 0
+	bounds: 55, 2, 6, 7
+	offsets: 0, 0, 8, 8
+walk_horizontal
+	index: 2
+	bounds: 63, 1, 6, 8
+	offsets: 0, 0, 8, 8
+walk_horizontal
+	index: 1
+	bounds: 71, 1, 6, 8
+	offsets: 0, 0, 8, 8
+walk_up
+	index: 0
+	bounds: 10, 2, 7, 7
+	offsets: 0, 0, 8, 8
+walk_up
+	index: 2
+	bounds: 28, 1, 7, 8
+	offsets: 0, 0, 8, 8
+walk_up
+	index: 1
+	bounds: 46, 1, 7, 8
+	offsets: 0, 0, 8, 8
