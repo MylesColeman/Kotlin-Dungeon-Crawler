@@ -129,10 +129,10 @@ class GameScreen : KtxScreen {
 
         engine.update(delta)
 
-        logic()
+        update()
     }
 
-    private fun logic() {
+    private fun update() {
         if (Gdx.input.isTouched) {
             val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
 
