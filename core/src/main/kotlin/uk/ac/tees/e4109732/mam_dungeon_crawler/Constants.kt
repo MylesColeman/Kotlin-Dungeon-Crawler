@@ -1,6 +1,8 @@
 package uk.ac.tees.e4109732.mam_dungeon_crawler
 
 object Constants {
+    const val IP_ADDRESS = "172.31.196.190"
+
     const val UNIT_SCALE = 1f / 8f
 
     const val BIT_PLAYER: Short = 0x0001

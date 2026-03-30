@@ -61,7 +61,7 @@ class GameScreen : KtxScreen {
 
         val datagramSocket = DatagramSocket()
         datagramSocket.send(DatagramPacket("HELLO".toByteArray(), 5,
-            InetAddress.getByName("10.0.2.2"), 4301))
+            InetAddress.getByName(Constants.IP_ADDRESS), 4301))
 
         val buffer = ByteArray(1024)
         val packet = DatagramPacket(buffer, buffer.size)
