@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.g2d.TextureAtlas
 import com.badlogic.gdx.maps.objects.PointMapObject
+import com.badlogic.gdx.maps.tiled.TiledMapTileLayer
 import com.badlogic.gdx.math.Vector2
 import com.badlogic.gdx.utils.viewport.Viewport
 import kotlinx.coroutines.CoroutineScope
@@ -136,15 +137,33 @@ class GameScreen : KtxScreen {
         if (Gdx.input.isTouched) {
             val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
 
+            val tileX = touch.x.toInt()
+            val tileY = touch.y.toInt()
+
+            if (tileX < 0 || tileX >= mapWidth || tileY < 0 || tileY >= mapHeight) { return }
+
+            val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
+            val lockedDoorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
+            val isBlocked = wallLayer?.getCell(tileX, tileY) != null ||
+                lockedDoorLayer?.getCell(tileX, tileY) != null
+
+            if (isBlocked) {
+                Gdx.app.log("COLLISION", "Blocked at $tileX, $tileY")
+                return
+            }
+
+            val snappedX = tileX + 0.5f
+            val snappedY = tileY + 0.5f
+
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id == playerID) {
-                    MovementComponent.mapper[entity]?.target?.set(touch.x, touch.y)
+                    MovementComponent.mapper[entity]?.target?.set(snappedX, snappedY)
                 }
             }
 
             coroutineScope.launch(Dispatchers.IO) {
-                val moveMsg = GameMessage.PlayerMoveMessage(playerID, touch.x, touch.y)
+                val moveMsg = GameMessage.PlayerMoveMessage(playerID, snappedX, snappedY)
 
                 tcpSocket.getOutputStream().write(moveMsg.serialise())
                 tcpSocket.getOutputStream().flush()
