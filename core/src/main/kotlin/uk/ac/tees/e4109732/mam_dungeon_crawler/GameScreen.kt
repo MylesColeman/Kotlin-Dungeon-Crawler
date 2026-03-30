@@ -175,7 +175,9 @@ class GameScreen : KtxScreen {
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id == queueMsg.id) {
-                    MovementComponent.mapper[entity]?.target?.set(queueMsg.posX, queueMsg.posY)
+                    val remoteSnapX = queueMsg.posX.toInt() + 0.5f
+                    val remoteSnapY = queueMsg.posY.toInt() + 0.5f
+                    MovementComponent.mapper[entity]?.target?.set(remoteSnapX, remoteSnapY)
                 }
             }
         }
