@@ -33,6 +33,7 @@ import ktx.tiled.x
 import ktx.tiled.y
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import ktx.ashley.allOf
 
 class GameScreen : KtxScreen {
     private val map = TmxMapLoader().load("Maps/PathfindingDemoRoom.tmx")
@@ -110,6 +111,7 @@ class GameScreen : KtxScreen {
 
         atlas = TextureAtlas("DungeonCrawlerEntities.atlas".toInternalFile())
         factory = EntityFactory(engine, atlas)
+        engine.addSystem(MovementSystem())
         engine.addSystem(AnimationSystem())
         engine.addSystem(RenderSystem(batch, camera))
 
@@ -127,35 +129,36 @@ class GameScreen : KtxScreen {
 
         engine.update(delta)
 
-        logic(delta)
+        logic()
     }
 
-    private fun logic(deltaTime: Float) {
-        /*if (Gdx.input.isTouched) {
+    private fun logic() {
+        if (Gdx.input.isTouched) {
             val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
 
-            players[playerID].targetX = touch.x
-            players[playerID].targetY = touch.y
+            engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
+                val pComp = PlayerComponent.mapper[entity]
+                if (pComp?.id == playerID) {
+                    MovementComponent.mapper[entity]?.target?.set(touch.x, touch.y)
+                }
+            }
 
             coroutineScope.launch(Dispatchers.IO) {
                 val moveMsg = GameMessage.PlayerMoveMessage(playerID, touch.x, touch.y)
-                val bytes = moveMsg.serialise()
 
-                tcpSocket.getOutputStream().write(bytes)
+                tcpSocket.getOutputStream().write(moveMsg.serialise())
                 tcpSocket.getOutputStream().flush()
             }
         }
 
-        for (player in players) {
-            player.update(deltaTime)
-        }*/
-
         while (queue.isNotEmpty()) {
-            val queueMsg = queue.poll()
-            /*if (queueMsg != null && queueMsg.id != playerID) {
-                players[queueMsg.id].targetX = queueMsg.posX
-                players[queueMsg.id].targetY = queueMsg.posY
-            }*/
+            val queueMsg = queue.poll() ?: continue
+            engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
+                val pComp = PlayerComponent.mapper[entity]
+                if (pComp?.id == queueMsg.id) {
+                    MovementComponent.mapper[entity]?.target?.set(queueMsg.posX, queueMsg.posY)
+                }
+            }
         }
     }
 

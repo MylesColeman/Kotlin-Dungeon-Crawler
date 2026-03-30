@@ -40,6 +40,16 @@ class AnimationComponent : Component, Pool.Poolable {
     companion object { val mapper = mapperFor<AnimationComponent>() }
 }
 
+class MovementComponent : Component, Pool.Poolable {
+    var target = Vector2()
+    var speed = 5f
+    override fun reset() {
+        target.set(0f, 0f)
+        speed = 5f
+    }
+    companion object { val mapper = mapperFor<MovementComponent>() }
+}
+
 class PlayerComponent : Component, Pool.Poolable {
     var id = -1
     override fun reset() { id = -1 }
