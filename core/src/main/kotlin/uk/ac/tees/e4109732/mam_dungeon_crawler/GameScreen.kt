@@ -23,7 +23,6 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.Socket
-import java.util.concurrent.ConcurrentLinkedQueue
 import com.badlogic.gdx.maps.tiled.TmxMapLoader
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer
 import com.badlogic.gdx.utils.viewport.FitViewport
@@ -35,27 +34,28 @@ import java.nio.ByteOrder
 import ktx.ashley.allOf
 
 class GameScreen : KtxScreen {
-    private val map = TmxMapLoader().load("Maps/PathfindingDemoRoom.tmx")
-    private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE)
     private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
-    private val batch = SpriteBatch()
-    private val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
-    private val queue = ConcurrentLinkedQueue<Message>()
+
+    private val map = TmxMapLoader().load("Maps/PathfindingDemoRoom.tmx")
+    val collisionGrid = BooleanArray(20 * 11)
+    private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE)
+
     private lateinit var camera: OrthographicCamera
     private lateinit var viewport: Viewport
-    private var mapWidth: Float = 20f
-    private var mapHeight: Float = 11f
-    private var playerID: Int = 0
+    private val batch = SpriteBatch()
+    private lateinit var atlas: TextureAtlas
+
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
     private lateinit var tcpSocket: Socket
 
     private val engine = PooledEngine()
-    private lateinit var atlas: TextureAtlas
     private lateinit var factory: EntityFactory
+    private var playerID: Int = 0
 
     override fun show() {
         camera = OrthographicCamera()
-        viewport = FitViewport(mapWidth, mapHeight, camera)
-        camera.position.set(mapWidth / 2, mapHeight / 2, 0f)
+        viewport = FitViewport(Constants.MAP_WIDTH.toFloat(), Constants.MAP_HEIGHT.toFloat(), camera)
+        camera.position.set(Constants.MAP_WIDTH.toFloat() / 2, Constants.MAP_HEIGHT.toFloat() / 2, 0f)
         camera.update()
         viewport.update(Gdx.graphics.width, Gdx.graphics.height, true)
 
@@ -98,7 +98,28 @@ class GameScreen : KtxScreen {
                         val msg = factory.create(readBuffer)
 
                         if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) {
-                            queue.add(Message(msg.id, msg.posX, msg.posY))
+                            Gdx.app.postRunnable {
+                                val remoteEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
+                                    .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return@postRunnable
+
+                                val startPos = TransformComponent.mapper[remoteEntity]!!.position
+                                val startX = startPos.x.toInt()
+                                val startY = startPos.y.toInt()
+
+                                coroutineScope.launch(Dispatchers.Default) {
+                                    val path = Pathfinding.findPath(startX, startY, msg.posX.toInt(), msg.posY.toInt()) { x, y ->
+                                        if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true
+                                        else collisionGrid[y * Constants.MAP_WIDTH + x]
+                                    }
+
+                                    Gdx.app.postRunnable {
+                                        PathComponent.mapper[remoteEntity]?.nodes?.apply {
+                                            clear()
+                                            addAll(path)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -119,6 +140,16 @@ class GameScreen : KtxScreen {
         spawnPoints.forEachIndexed { index, spawnPoint ->
             factory.createPlayer(index, spawnX = spawnPoint.x * Constants.UNIT_SCALE, spawnY = spawnPoint.y * Constants.UNIT_SCALE)
         }
+
+        val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
+        val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
+
+        for (y in 0 until Constants.MAP_HEIGHT) {
+            for (x in 0 until Constants.MAP_WIDTH) {
+                val isBlocked = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
+                collisionGrid[y * Constants.MAP_WIDTH + x] = isBlocked
+            }
+        }
     }
 
     override fun render(delta: Float) {
@@ -132,124 +163,49 @@ class GameScreen : KtxScreen {
     }
 
     private fun update() {
-        if (Gdx.input.isTouched) {
+        if (Gdx.input.justTouched()) {
             val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
-
             val tileX = touch.x.toInt()
             val tileY = touch.y.toInt()
 
-            if (tileX < 0 || tileX >= mapWidth || tileY < 0 || tileY >= mapHeight) { return }
+            if (tileX < 0 || tileX >= Constants.MAP_WIDTH || tileY < 0 || tileY >= Constants.MAP_HEIGHT) { return }
+            if (collisionGrid[tileY * Constants.MAP_WIDTH + tileX]) return
 
-            val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
-            val lockedDoorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-            val isBlocked = wallLayer?.getCell(tileX, tileY) != null ||
-                lockedDoorLayer?.getCell(tileX, tileY) != null
-
-            if (isBlocked) {
-                Gdx.app.log("COLLISION", "Blocked at $tileX, $tileY")
-                return
-            }
-
-            val snappedX = tileX + 0.5f
-            val snappedY = tileY + 0.5f
-
-            val reservedTiles = mutableSetOf<Pair<Int, Int>>()
-            engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class, MovementComponent::class).get()).forEach { entity ->
+            val currentReserved = mutableSetOf<Int>()
+            engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id != playerID) {
-                    val transComp = TransformComponent.mapper[entity]!!
-                    val moveComp = MovementComponent.mapper[entity]!!
+                    val pos = TransformComponent.mapper[entity]!!.position
+                    currentReserved.add(pos.y.toInt() * 20 + pos.x.toInt())
+                }
+            }
 
-                    reservedTiles.add(transComp.position.x.toInt() to transComp.position.y.toInt())
+            val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find {
+                PlayerComponent.mapper[it]?.id == playerID
+            } ?: return
+            val startPos = TransformComponent.mapper[playerEntity]!!.position
+            val startX = startPos.x.toInt()
+            val startY = startPos.y.toInt()
 
-                    moveComp.targetTile?.let {
-                        reservedTiles.add(it.x.toInt() to it.y.toInt())
+            coroutineScope.launch(Dispatchers.Default) {
+                val newPath = Pathfinding.findPath(startX, startY, tileX, tileY) { x, y ->
+                    if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true
+                    else collisionGrid[y * Constants.MAP_WIDTH + x] || currentReserved.contains(y * Constants.MAP_WIDTH + x)
+                }
+
+                Gdx.app.postRunnable {
+                    PathComponent.mapper[playerEntity]?.nodes?.apply {
+                        clear()
+                        addAll(newPath)
                     }
                 }
-            }
-
-            engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
-                val pComp = PlayerComponent.mapper[entity]
-
-                if (pComp?.id == playerID) {
-                    val transComp = TransformComponent.mapper[entity]!!
-
-                    val newPath = Pathfinding.findPath(
-                        startX = transComp.position.x.toInt(),
-                        startY = transComp.position.y.toInt(),
-                        goalX = tileX,
-                        goalY = tileY,
-                        isBlocked = { x, y ->
-                            if (x < 0 || x >= 20 || y < 0 || y >= 11) true
-                            else {
-                                val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
-                                val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-                                val isMapObstacle = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
-
-                                val isPlayerBlocking = reservedTiles.contains(x to y)
-
-                                isMapObstacle || isPlayerBlocking
-                            }
-                        }
-                    )
-
-                    val pathComp = PathComponent.mapper[entity]
-                    pathComp?.nodes?.clear()
-                    pathComp?.nodes?.addAll(newPath)
                 }
-            }
 
             coroutineScope.launch(Dispatchers.IO) {
-                val moveMsg = GameMessage.PlayerMoveMessage(playerID, snappedX, snappedY)
+                val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
 
                 tcpSocket.getOutputStream().write(moveMsg.serialise())
                 tcpSocket.getOutputStream().flush()
-            }
-        }
-
-        while (queue.isNotEmpty()) {
-            val queueMsg = queue.poll() ?: continue
-
-            val reservedTiles = mutableSetOf<Pair<Int, Int>>()
-            engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class, MovementComponent::class).get()).forEach { entity ->
-                val pComp = PlayerComponent.mapper[entity]
-                if (pComp?.id != queueMsg.id) {
-                    val otherT = TransformComponent.mapper[entity]!!
-                    val otherM = MovementComponent.mapper[entity]!!
-                    reservedTiles.add(otherT.position.x.toInt() to otherT.position.y.toInt())
-                    otherM.targetTile?.let { reservedTiles.add(it.x.toInt() to it.y.toInt()) }
-                }
-            }
-
-            engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
-                val pComp = PlayerComponent.mapper[entity]
-                if (pComp?.id == queueMsg.id) {
-                    val transComp = TransformComponent.mapper[entity]!!
-
-                    val remotePath = Pathfinding.findPath(
-                        startX = transComp.position.x.toInt(),
-                        startY = transComp.position.y.toInt(),
-                        goalX = queueMsg.posX.toInt(),
-                        goalY = queueMsg.posY.toInt(),
-                        isBlocked = { x, y ->
-                            if (x < 0 || x >= 20 || y < 0 || y >= 11) true
-                            else {
-                                val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
-                                val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-                                val isMapObstacle = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
-
-                                val isPlayerBlocking = reservedTiles.contains(x to y)
-
-                                isMapObstacle || isPlayerBlocking
-                            }
-                        }
-                    )
-
-                    PathComponent.mapper[entity]?.nodes?.let {
-                        it.clear()
-                        it.addAll(remotePath)
-                    }
-                }
             }
         }
     }
