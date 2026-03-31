@@ -153,8 +153,24 @@ class GameScreen : KtxScreen {
             val snappedX = tileX + 0.5f
             val snappedY = tileY + 0.5f
 
+            val reservedTiles = mutableSetOf<Pair<Int, Int>>()
+            engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class, MovementComponent::class).get()).forEach { entity ->
+                val pComp = PlayerComponent.mapper[entity]
+                if (pComp?.id != playerID) {
+                    val transComp = TransformComponent.mapper[entity]!!
+                    val moveComp = MovementComponent.mapper[entity]!!
+
+                    reservedTiles.add(transComp.position.x.toInt() to transComp.position.y.toInt())
+
+                    moveComp.targetTile?.let {
+                        reservedTiles.add(it.x.toInt() to it.y.toInt())
+                    }
+                }
+            }
+
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
+
                 if (pComp?.id == playerID) {
                     val transComp = TransformComponent.mapper[entity]!!
 
@@ -168,18 +184,14 @@ class GameScreen : KtxScreen {
                             else {
                                 val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
                                 val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-                                val isWall = wallLayer?.getCell(x, y) != null
-                                val isDoor = doorLayer?.getCell(x, y) != null
+                                val isMapObstacle = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
 
-                                isWall || isDoor
+                                val isPlayerBlocking = reservedTiles.contains(x to y)
+
+                                isMapObstacle || isPlayerBlocking
                             }
-
                         }
                     )
-
-                    engine.getEntitiesFor(allOf(TextureComponent::class, TransformComponent::class).get())
-                        .filter { TransformComponent.mapper[it]?.z == 0.5f }
-                        .forEach { engine.removeEntity(it) }
 
                     val pathComp = PathComponent.mapper[entity]
                     pathComp?.nodes?.clear()
@@ -197,6 +209,18 @@ class GameScreen : KtxScreen {
 
         while (queue.isNotEmpty()) {
             val queueMsg = queue.poll() ?: continue
+
+            val reservedTiles = mutableSetOf<Pair<Int, Int>>()
+            engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class, MovementComponent::class).get()).forEach { entity ->
+                val pComp = PlayerComponent.mapper[entity]
+                if (pComp?.id != queueMsg.id) {
+                    val otherT = TransformComponent.mapper[entity]!!
+                    val otherM = MovementComponent.mapper[entity]!!
+                    reservedTiles.add(otherT.position.x.toInt() to otherT.position.y.toInt())
+                    otherM.targetTile?.let { reservedTiles.add(it.x.toInt() to it.y.toInt()) }
+                }
+            }
+
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id == queueMsg.id) {
@@ -212,10 +236,11 @@ class GameScreen : KtxScreen {
                             else {
                                 val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
                                 val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-                                val isWall = wallLayer?.getCell(x, y) != null
-                                val isDoor = doorLayer?.getCell(x, y) != null
+                                val isMapObstacle = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
 
-                                isWall || isDoor
+                                val isPlayerBlocking = reservedTiles.contains(x to y)
+
+                                isMapObstacle || isPlayerBlocking
                             }
                         }
                     )

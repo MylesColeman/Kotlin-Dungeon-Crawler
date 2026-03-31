@@ -18,6 +18,7 @@ class MovementSystem : IteratingSystem(
         if (path.nodes.isNotEmpty() && transform.position.dst(movement.target) < 0.1f) {
             val nextNode = path.nodes.removeAt(0)
             movement.target.set(nextNode)
+            movement.targetTile = nextNode
         }
 
         val distance = transform.position.dst(movement.target)
@@ -28,10 +29,14 @@ class MovementSystem : IteratingSystem(
 
             if (movementAmount >= distance) {
                 transform.position.set(movement.target)
+                movement.targetTile = null
             } else {
                 tempVec.set(movement.target).sub(transform.position).nor().scl(movementAmount)
                 transform.position.add(tempVec)
             }
-        } else { anim.isMoving = false }
+        } else {
+            anim.isMoving = false
+            movement.targetTile = null
+        }
     }
 }

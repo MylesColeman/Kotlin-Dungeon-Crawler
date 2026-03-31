@@ -51,6 +51,7 @@ class PathComponent : Component, Pool.Poolable {
 
 class MovementComponent : Component, Pool.Poolable {
     var target = Vector2()
+    var targetTile: Vector2? = null
     var speed = 5f
     override fun reset() {
         target.set(0f, 0f)
