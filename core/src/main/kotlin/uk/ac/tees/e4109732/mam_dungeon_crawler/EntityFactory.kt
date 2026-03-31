@@ -19,6 +19,7 @@ class EntityFactory(private val engine: PooledEngine, private val atlas: Texture
         with<MovementComponent>() {
             target.set(spawnX, spawnY)
         }
+        with<PathComponent>()
         with<TextureComponent>()
         with<AnimationComponent> {
             animations["walk_down"] = createWalkingAnimation("walk_down")

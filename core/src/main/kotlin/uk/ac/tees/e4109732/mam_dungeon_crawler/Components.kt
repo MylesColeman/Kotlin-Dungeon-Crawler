@@ -40,6 +40,15 @@ class AnimationComponent : Component, Pool.Poolable {
     companion object { val mapper = mapperFor<AnimationComponent>() }
 }
 
+class PathComponent : Component, Pool.Poolable {
+    val nodes = mutableListOf<Vector2>()
+
+    override fun reset() {
+        nodes.clear()
+    }
+    companion object { val mapper = mapperFor<PathComponent>() }
+}
+
 class MovementComponent : Component, Pool.Poolable {
     var target = Vector2()
     var speed = 5f

@@ -19,7 +19,6 @@ import ktx.app.KtxScreen
 import ktx.app.clearScreen
 import ktx.assets.disposeSafely
 import ktx.assets.toInternalFile
-import ktx.graphics.use
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -28,7 +27,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import com.badlogic.gdx.maps.tiled.TmxMapLoader
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer
 import com.badlogic.gdx.utils.viewport.FitViewport
-import ktx.ashley.add
 import ktx.tiled.type
 import ktx.tiled.x
 import ktx.tiled.y
@@ -158,7 +156,23 @@ class GameScreen : KtxScreen {
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id == playerID) {
-                    MovementComponent.mapper[entity]?.target?.set(snappedX, snappedY)
+                    val transComp = TransformComponent.mapper[entity]!!
+
+                    val newPath = Pathfinding.findPath(
+                        startX = transComp.position.x.toInt(),
+                        startY = transComp.position.y.toInt(),
+                        goalX = tileX,
+                        goalY = tileY,
+                        isBlocked = { x, y ->
+                            val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
+                            val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
+                            wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
+                        }
+                    )
+
+                    val pathComp = PathComponent.mapper[entity]
+                    pathComp?.nodes?.clear()
+                    pathComp?.nodes?.addAll(newPath)
                 }
             }
 
@@ -175,9 +189,24 @@ class GameScreen : KtxScreen {
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id == queueMsg.id) {
-                    val remoteSnapX = queueMsg.posX.toInt() + 0.5f
-                    val remoteSnapY = queueMsg.posY.toInt() + 0.5f
-                    MovementComponent.mapper[entity]?.target?.set(remoteSnapX, remoteSnapY)
+                    val trans = TransformComponent.mapper[entity]!!
+
+                    val remotePath = Pathfinding.findPath(
+                        startX = trans.position.x.toInt(),
+                        startY = trans.position.y.toInt(),
+                        goalX = queueMsg.posX.toInt(),
+                        goalY = queueMsg.posY.toInt(),
+                        isBlocked = { x, y ->
+                            val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
+                            val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
+                            wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
+                        }
+                    )
+
+                    PathComponent.mapper[entity]?.nodes?.let {
+                        it.clear()
+                        it.addAll(remotePath)
+                    }
                 }
             }
         }

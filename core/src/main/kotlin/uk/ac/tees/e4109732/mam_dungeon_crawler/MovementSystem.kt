@@ -6,17 +6,23 @@ import com.badlogic.gdx.math.Vector2
 import ktx.ashley.allOf
 
 class MovementSystem : IteratingSystem(
-    allOf(TransformComponent::class, MovementComponent::class, AnimationComponent::class).get()) {
+    allOf(TransformComponent::class, MovementComponent::class, PathComponent::class, AnimationComponent::class).get()) {
     private val tempVec = Vector2()
 
-    override fun processEntity(entity: Entity?, deltaTime: Float) {
+    override fun processEntity(entity: Entity, deltaTime: Float) {
         val transform = TransformComponent.mapper[entity] ?: return
         val movement = MovementComponent.mapper[entity] ?: return
+        val path = PathComponent.mapper[entity] ?: return
         val anim = AnimationComponent.mapper[entity] ?: return
+
+        if (path.nodes.isNotEmpty() && transform.position.dst(movement.target) < 0.1f) {
+            val nextNode = path.nodes.removeAt(0)
+            movement.target.set(nextNode)
+        }
 
         val distance = transform.position.dst(movement.target)
 
-        if (distance > 0.1f) {
+        if (distance > 0.05f) {
             anim.isMoving = true
             val movementAmount = movement.speed * deltaTime
 
