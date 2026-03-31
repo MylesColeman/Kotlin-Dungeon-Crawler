@@ -164,11 +164,22 @@ class GameScreen : KtxScreen {
                         goalX = tileX,
                         goalY = tileY,
                         isBlocked = { x, y ->
-                            val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
-                            val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-                            wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
+                            if (x < 0 || x >= 20 || y < 0 || y >= 11) true
+                            else {
+                                val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
+                                val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
+                                val isWall = wallLayer?.getCell(x, y) != null
+                                val isDoor = doorLayer?.getCell(x, y) != null
+
+                                isWall || isDoor
+                            }
+
                         }
                     )
+
+                    engine.getEntitiesFor(allOf(TextureComponent::class, TransformComponent::class).get())
+                        .filter { TransformComponent.mapper[it]?.z == 0.5f }
+                        .forEach { engine.removeEntity(it) }
 
                     val pathComp = PathComponent.mapper[entity]
                     pathComp?.nodes?.clear()
@@ -189,17 +200,23 @@ class GameScreen : KtxScreen {
             engine.getEntitiesFor(allOf(PlayerComponent::class).get()).forEach { entity ->
                 val pComp = PlayerComponent.mapper[entity]
                 if (pComp?.id == queueMsg.id) {
-                    val trans = TransformComponent.mapper[entity]!!
+                    val transComp = TransformComponent.mapper[entity]!!
 
                     val remotePath = Pathfinding.findPath(
-                        startX = trans.position.x.toInt(),
-                        startY = trans.position.y.toInt(),
+                        startX = transComp.position.x.toInt(),
+                        startY = transComp.position.y.toInt(),
                         goalX = queueMsg.posX.toInt(),
                         goalY = queueMsg.posY.toInt(),
                         isBlocked = { x, y ->
-                            val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
-                            val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
-                            wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
+                            if (x < 0 || x >= 20 || y < 0 || y >= 11) true
+                            else {
+                                val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
+                                val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
+                                val isWall = wallLayer?.getCell(x, y) != null
+                                val isDoor = doorLayer?.getCell(x, y) != null
+
+                                isWall || isDoor
+                            }
                         }
                     )
 

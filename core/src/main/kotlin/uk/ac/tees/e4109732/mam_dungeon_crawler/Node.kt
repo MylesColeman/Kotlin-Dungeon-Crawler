@@ -4,8 +4,8 @@ import com.badlogic.gdx.utils.BinaryHeap
 
 class Node(val x: Int, val y: Int) : BinaryHeap.Node(0f) {
     var g: Int = 0
-    var h: Int = 0
-    val f: Int get() = g + h
+    var h: Float = 0f
+    val f: Float get() = g + h
     var parent: Node? = null
 
     var isInOpenSet: Boolean = false

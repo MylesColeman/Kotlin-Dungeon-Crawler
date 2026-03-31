@@ -24,15 +24,20 @@ class RenderSystem(private val batch: SpriteBatch, private val camera: Orthograp
             val texture = TextureComponent.mapper[entity] ?: return
 
             texture.region?.let { region ->
-                val width = region.regionWidth * Constants.UNIT_SCALE
-                val height = region.regionHeight * Constants.UNIT_SCALE
+                var width = region.regionWidth * Constants.UNIT_SCALE
+                var height = region.regionHeight * Constants.UNIT_SCALE
+
+                if (transform.z == 0.5f) {
+                    width *= 0.1f
+                    height *= 0.1f
+                }
 
                 batch.draw(
                     region,
                     transform.position.x - (width / 2f),
                     transform.position.y - (height / 2f),
-                    region.regionWidth * Constants.UNIT_SCALE,
-                    region.regionHeight * Constants.UNIT_SCALE
+                    width,
+                    height
                 )
 
             }
