@@ -16,7 +16,7 @@ class EntityFactory(private val engine: PooledEngine, private val atlas: Texture
             position.set(spawnX, spawnY)
             z = 1f
         }
-        with<MovementComponent>() {
+        with<MovementComponent> {
             target.set(spawnX, spawnY)
         }
         with<PathComponent>()

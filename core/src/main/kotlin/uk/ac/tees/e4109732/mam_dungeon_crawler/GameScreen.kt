@@ -13,16 +13,11 @@ import com.badlogic.gdx.maps.tiled.TiledMapTileLayer
 import com.badlogic.gdx.math.Vector2
 import com.badlogic.gdx.utils.viewport.Viewport
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import ktx.app.KtxScreen
 import ktx.app.clearScreen
 import ktx.assets.disposeSafely
 import ktx.assets.toInternalFile
-import java.net.DatagramPacket
-import java.net.DatagramSocket
-import java.net.InetAddress
 import java.net.Socket
 import com.badlogic.gdx.maps.tiled.TmxMapLoader
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer
@@ -33,6 +28,7 @@ import ktx.tiled.y
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import ktx.ashley.allOf
+import java.net.InetSocketAddress
 
 class GameScreen : KtxScreen {
     private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
@@ -47,12 +43,12 @@ class GameScreen : KtxScreen {
     private lateinit var atlas: TextureAtlas
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
-    private lateinit var tcpSocket: Socket
+    private var tcpSocket: Socket? = null
 
     private val engine = PooledEngine()
     private lateinit var factory: EntityFactory
 
-    private var playerID: Int = 0
+    private var playerID: Int = -1
     private var pathValidationTimer = 0f
 
     override fun show() {
@@ -62,85 +58,48 @@ class GameScreen : KtxScreen {
         camera.update()
         viewport.update(Gdx.graphics.width, Gdx.graphics.height, true)
 
-        val datagramSocket = DatagramSocket()
-        datagramSocket.send(DatagramPacket("HELLO".toByteArray(), 5, InetAddress.getByName(Constants.IP_ADDRESS), 4301))
-
-        val buffer = ByteArray(1024)
-        val packet = DatagramPacket(buffer, buffer.size)
-        datagramSocket.receive(packet)
-        tcpSocket = Socket(packet.address, 4300)
-        val inputStream = tcpSocket.getInputStream()
-        val idBytes = ByteArray(4)
-        var totalIdBytesRead = 0
-
-        while (totalIdBytesRead < 4) {
-            val read = inputStream.read(idBytes, totalIdBytesRead, 4 - totalIdBytesRead)
-            if (read == -1) throw Exception("Socket closed before Player ID was received")
-            totalIdBytesRead += read
-        }
-
-        val idBuffer = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN)
-        playerID = idBuffer.int
-        Gdx.app.log("NETWORK", "Assigned Player ID: $playerID")
-
-        coroutineScope.launch {
-            try {
-                val factory = GameMessageFactory()
-                while (true) {
-                    val readBuffer = ByteArray(13)
-                    var bytesRead = 0
-
-                    while (bytesRead < 13) {
-                        val result = inputStream.read(readBuffer, bytesRead, 13 - bytesRead)
-                        if (result == -1) break
-                        bytesRead += result
-                    }
-
-                    if (bytesRead == 13) {
-                        val msg = factory.create(readBuffer)
-
-                        if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) {
-                            Gdx.app.postRunnable {
-                                val remoteEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
-                                    .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return@postRunnable
-
-                                val startPos = TransformComponent.mapper[remoteEntity]!!.position
-                                val startX = startPos.x.toInt()
-                                val startY = startPos.y.toInt()
-
-                                coroutineScope.launch(Dispatchers.Default) {
-                                    val path = Pathfinding.findPath(startX, startY, msg.posX.toInt(), msg.posY.toInt()) { x, y ->
-                                        if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true
-                                        else collisionGrid[y * Constants.MAP_WIDTH + x]
-                                    }
-
-                                    Gdx.app.postRunnable {
-                                        PathComponent.mapper[remoteEntity]?.nodes?.apply {
-                                            clear()
-                                            addAll(path)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Gdx.app.error("NETWORK", "Connection Lost: ${e.message}")
-            }
-
-        }
-
         atlas = TextureAtlas("DungeonCrawlerEntities.atlas".toInternalFile())
         factory = EntityFactory(engine, atlas)
         engine.addSystem(MovementSystem())
         engine.addSystem(AnimationSystem())
         engine.addSystem(RenderSystem(batch, camera))
 
+        setupCollisionGrid()
+
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                Gdx.app.log("NETWORK", "Connecting to ${Constants.IP_ADDRESS}...")
+                val socket = Socket()
+                socket.connect(InetSocketAddress(Constants.IP_ADDRESS, 4300), 5000)
+                tcpSocket = socket
+
+                val inputStream = socket.getInputStream()
+
+                val idBytes = ByteArray(4)
+                var totalIdBytesRead = 0
+
+                while (totalIdBytesRead < 4) {
+                    val read = inputStream.read(idBytes, totalIdBytesRead, 4 - totalIdBytesRead)
+                    if (read == -1) throw Exception("Socket closed before Player ID was received")
+                    totalIdBytesRead += read
+                }
+
+                playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
+                Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
+
+                runNetworkListener(inputStream)
+            } catch (e: Exception) {
+                Gdx.app.error("NETWORK", "Connection Lost: ${e.message}")
+            }
+        }
+    }
+
+    private fun setupCollisionGrid() {
         val spawnLayer = map.layers["Spawn_Points"]?.objects ?: throw Exception("Spawn_Points layer not found")
         val spawnPoints = spawnLayer.filterIsInstance<PointMapObject>().filter { it.type == "SpawnPoint" }
         spawnPoints.forEachIndexed { index, spawnPoint ->
-            factory.createPlayer(index, spawnX = spawnPoint.x * Constants.UNIT_SCALE, spawnY = spawnPoint.y * Constants.UNIT_SCALE)
+            factory.createPlayer(
+                index, spawnX = spawnPoint.x * Constants.UNIT_SCALE, spawnY = spawnPoint.y * Constants.UNIT_SCALE)
         }
 
         val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
@@ -150,6 +109,48 @@ class GameScreen : KtxScreen {
             for (x in 0 until Constants.MAP_WIDTH) {
                 val isBlocked = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
                 collisionGrid[y * Constants.MAP_WIDTH + x] = isBlocked
+            }
+        }
+    }
+
+    private fun runNetworkListener(inputStream: java.io.InputStream) {
+        val msgFactory = GameMessageFactory()
+        try {
+            while (coroutineScope.isActive) {
+                val readBuffer = ByteArray(13)
+                var bytesRead = 0
+                while (bytesRead < 13) {
+                    val result = inputStream.read(readBuffer, bytesRead, 13 - bytesRead)
+                    if (result == -1) return
+                    bytesRead += result
+                }
+
+                val msg = msgFactory.create(readBuffer)
+                if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) handleRemoteMove(msg)
+            }
+        } catch (e: Exception) {
+            Gdx.app.error("NETWORK", "Listener Lost: ${e.message}")
+        }
+    }
+
+    private fun handleRemoteMove(msg: GameMessage.PlayerMoveMessage) {
+        Gdx.app.postRunnable {
+            val remoteEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
+                .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return@postRunnable
+
+            val startPos = TransformComponent.mapper[remoteEntity]!!.position
+            coroutineScope.launch(Dispatchers.Default) {
+                val path = Pathfinding.findPath(startPos.x.toInt(), startPos.y.toInt(),
+                    msg.posX.toInt(), msg.posY.toInt()) { x, y ->
+                    if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true
+                    else collisionGrid[y * Constants.MAP_WIDTH + x]
+                }
+                Gdx.app.postRunnable {
+                    PathComponent.mapper[remoteEntity]?.nodes?.apply {
+                        clear()
+                        addAll(path)
+                    }
+                }
             }
         }
     }
@@ -165,7 +166,6 @@ class GameScreen : KtxScreen {
     }
 
     private fun update(deltaTime: Float) {
-
         if (Gdx.input.justTouched()) {
             val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
             val tileX = touch.x.toInt()
@@ -177,9 +177,16 @@ class GameScreen : KtxScreen {
 
                 requestPath(playerEntity, tileX, tileY)
 
-                coroutineScope.launch(Dispatchers.IO) {
-                    val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
-                    tcpSocket.getOutputStream().write(moveMsg.serialise())
+                val socket = tcpSocket
+                if (socket != null && socket.isConnected && !socket.isClosed) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
+                            socket.getOutputStream().write(moveMsg.serialise())
+                        } catch (e: Exception) {
+                            Gdx.app.error("NETWORK", "Send Error: ${e.message}")
+                        }
+                    }
                 }
             }
         }
@@ -252,6 +259,8 @@ class GameScreen : KtxScreen {
     }
 
     override fun dispose() {
+        coroutineScope.cancel()
+        tcpSocket?.close()
         map.disposeSafely()
         renderer.disposeSafely()
         image.disposeSafely()
