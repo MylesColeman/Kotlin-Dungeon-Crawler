@@ -6,9 +6,9 @@ import ktx.async.KtxAsync
 
 class Main : KtxGame<KtxScreen>() {
     override fun create() {
-        KtxAsync.initiate()
+        KtxAsync.initiate() // Allows for multi-threading
 
         addScreen(GameScreen())
-        setScreen<GameScreen>()
+        setScreen<GameScreen>() // Sets the screen to the actual game screen
     }
 }

@@ -3,21 +3,36 @@ package uk.ac.tees.e4109732.mam_dungeon_crawler
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+// Creates an interface used by 'GameMessage' this means each message must be serialisable -
+// turnable into a ByteArray for efficient message sending
 interface Serialisable {
     fun serialise(): ByteArray
 }
 
+// Holds all game message types and assigns them an ID
+// This ID is used by the server, allowing it to recognise what message has been received nad how to deserialise it
 enum class GameMessageType(val id: Byte) {
     PLAYER_MOVE(1);
 
+    // Companion object to help recognise message type, looking at the assigned byte
     companion object {
         fun fromByte(id: Byte) = entries.first { it.id == id }
     }
 }
 
+// Defines game messages
 sealed class GameMessage(val type: GameMessageType) : Serialisable {
+    // --------------------------------------------------------------------------------------------------
+    // Message serialise function converts the byte order to little endian to match the C++ server
+    // First byte is the message ID used to identify the message
+    // Converts to byte array
+    // Each message contains a companion object which has a deserialise function, this returns the message back into usable data
+    // This can't be an interface as object doesn't exist at this point
+    // --------------------------------------------------------------------------------------------------
 
+    // Player movement - sends position
     data class PlayerMoveMessage(val id: Int, val posX: Float, val posY: Float): GameMessage(GameMessageType.PLAYER_MOVE) {
+        // Capacity 13 as, Byte(1) + Int(4) + Float(4) + Float(4) = 13
         override fun serialise(): ByteArray = ByteBuffer.allocate(13).apply {
             order(ByteOrder.LITTLE_ENDIAN)
             put(type.id)
@@ -34,13 +49,16 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
     }
 }
 
+// Converts incoming messages from the server back into 'GameMessage's
 class GameMessageFactory {
+    // Creates 'GameMessage's from incoming ByteArrays
     fun create(ba: ByteArray): GameMessage {
-        val bb = ByteBuffer.wrap(ba).order(ByteOrder.LITTLE_ENDIAN)
-        val type = GameMessageType.fromByte(bb.get())
+        val bb = ByteBuffer.wrap(ba).order(ByteOrder.LITTLE_ENDIAN) // Allows the array to be read
+        val type = GameMessageType.fromByte(bb.get()) // Looks at the first byte and decides what type of message it is
 
+        // Using that first byte assigns the correct message
         return when (type) {
-            GameMessageType.PLAYER_MOVE -> GameMessage.PlayerMoveMessage.deserialise(bb)
+            GameMessageType.PLAYER_MOVE -> GameMessage.PlayerMoveMessage.deserialise(bb) // Deserialises the message so it can be used
         }
     }
 }

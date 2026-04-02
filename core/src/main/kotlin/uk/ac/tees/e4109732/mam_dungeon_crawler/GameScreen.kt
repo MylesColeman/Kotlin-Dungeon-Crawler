@@ -3,6 +3,7 @@ package uk.ac.tees.e4109732.mam_dungeon_crawler
 import com.badlogic.ashley.core.Entity
 import com.badlogic.ashley.core.PooledEngine
 import com.badlogic.gdx.Gdx
+import com.badlogic.gdx.Gdx.input
 import com.badlogic.gdx.graphics.OrthographicCamera
 import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.Texture.TextureFilter.Linear
@@ -30,102 +31,135 @@ import java.nio.ByteOrder
 import ktx.ashley.allOf
 import java.net.InetSocketAddress
 
+// Main game screen
 class GameScreen : KtxScreen {
+    // Default game logo - should be changed
     private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
 
+    // Tiled map variables
     private val map = TmxMapLoader().load("Maps/PathfindingDemoRoom.tmx")
-    val collisionGrid = BooleanArray(20 * 11)
-    private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE)
+    val collisionGrid = BooleanArray(Constants.MAP_WIDTH * Constants.MAP_HEIGHT) // Used to determine obstacle locations
+    private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE) // Orthogonal like original Zelda, 1 / 8 unit scale
 
-    private lateinit var camera: OrthographicCamera
+    // Rendering pipeline
+    private lateinit var camera: OrthographicCamera // Converts world units to screen coordinates, orthogonal like original Zelda
     private lateinit var viewport: Viewport
     private val batch = SpriteBatch()
+    // Memory efficient collection of texture regions, uses one large image opposed to multiple small ones
     private lateinit var atlas: TextureAtlas
 
-    private val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
-    private var tcpSocket: Socket? = null
+    // Networking and asynchrony
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + Job()) // Used to manage background tasks
+    private var tcpSocket: Socket? = null // Connection to game server, tcp so its persistent
 
-    private val engine = PooledEngine()
-    private lateinit var factory: EntityFactory
+    // Component variables
+    private val engine = PooledEngine() // Manages entities, their systems and components
+    private lateinit var factory: EntityFactory // Used to create entities
 
-    private var playerID: Int = -1
-    private var pathValidationTimer = 0f
+    // Player variables
+    private var playerID: Int = -1 // Defaults to -1, i.e. not set
+    private var pathValidationTimer = 0f // Timer to check whether path is still valid every so often
 
+    // Sets up the initial state of the game screen
+    // The view, texture atlas, entity factory and it's systems, the grid logic (obstacles etc),
+    // and networking done so via a background coroutine used to connect to the server
     override fun show() {
+        // Sets up the camera and viewport to cover only the Tiled grid, with an orthographic view similar to the original Zelda's
         camera = OrthographicCamera()
+        // Uses fit viewport to ensure nothing is lost, scaled correctly - using black bars if viewport too small for screen
         viewport = FitViewport(Constants.MAP_WIDTH.toFloat(), Constants.MAP_HEIGHT.toFloat(), camera)
-        camera.position.set(Constants.MAP_WIDTH.toFloat() / 2, Constants.MAP_HEIGHT.toFloat() / 2, 0f)
+        camera.position.set(Constants.MAP_WIDTH.toFloat() / 2, Constants.MAP_HEIGHT.toFloat() / 2, 0f) // Centres the camera in the grid
         camera.update()
+        // Centres the camera on the viewport, and ensures it uses the screen's size not the world's
         viewport.update(Gdx.graphics.width, Gdx.graphics.height, true)
 
-        atlas = TextureAtlas("DungeonCrawlerEntities.atlas".toInternalFile())
-        factory = EntityFactory(engine, atlas)
+
+        atlas = TextureAtlas("DungeonCrawlerEntities.atlas".toInternalFile()) // Atlas holding all textures, more efficient than individual images
+        factory = EntityFactory(engine, atlas) // Creates an instance of the entity factory to create entities for this screen
+        // Adds the used systems to the engine
         engine.addSystem(MovementSystem())
         engine.addSystem(AnimationSystem())
         engine.addSystem(RenderSystem(batch, camera))
 
-        setupCollisionGrid()
+        setupCollisionGrid() // Uses the Tiled map to setup a collision grid, using the obstacle layers
 
+        // Launches a coroutine in the background, this is used to establish a connection with the server - tcp so its persistent
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 Gdx.app.log("NETWORK", "Connecting to ${Constants.IP_ADDRESS}...")
+                // Creates a socket which attempts to connect to the server, it has a 5 second timeout before failing
                 val socket = Socket()
                 socket.connect(InetSocketAddress(Constants.IP_ADDRESS, 4300), 5000)
                 tcpSocket = socket
 
-                val inputStream = socket.getInputStream()
+                val inputStream = socket.getInputStream() // Data flowing in from the server
 
-                val idBytes = ByteArray(4)
+                val idBytes = ByteArray(4) // The size of an int, which determines player ID
                 var totalIdBytesRead = 0
 
+                // Continues listening till 4 bytes are received
                 while (totalIdBytesRead < 4) {
+                    // Fills the idBytes array from totalIdBytesRead till we have 4 total
                     val read = inputStream.read(idBytes, totalIdBytesRead, 4 - totalIdBytesRead)
                     if (read == -1) throw Exception("Socket closed before Player ID was received")
                     totalIdBytesRead += read
                 }
 
+                // Takes the 4 collected bytes (ensuring they're read the same way the server wrote them (little endian)) and combines them into an int
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
                 Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
 
-                runNetworkListener(inputStream)
+                runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
             } catch (e: Exception) {
                 Gdx.app.error("NETWORK", "Connection Lost: ${e.message}")
             }
         }
     }
 
+    // Sets up the collision grid and handles player spawn points
     private fun setupCollisionGrid() {
+        // Looks at the specific layer, specific objects of specific type which is used for player spawn points and puts them in a list
         val spawnLayer = map.layers["Spawn_Points"]?.objects ?: throw Exception("Spawn_Points layer not found")
         val spawnPoints = spawnLayer.filterIsInstance<PointMapObject>().filter { it.type == "SpawnPoint" }
+        // Creates a player at the spawn point, looping through the index of the list
         spawnPoints.forEachIndexed { index, spawnPoint ->
             factory.createPlayer(
-                index, spawnX = spawnPoint.x * Constants.UNIT_SCALE, spawnY = spawnPoint.y * Constants.UNIT_SCALE)
+                index, spawnX = spawnPoint.x * Constants.UNIT_SCALE, spawnY = spawnPoint.y * Constants.UNIT_SCALE) // Scales by unit scale so map pixels become world units
         }
 
+        // Gets reference to the layers used as obstacles
         val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
         val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
 
+        // Loops through the 2D tiled grid converting it to a 1D boolean array
         for (y in 0 until Constants.MAP_HEIGHT) {
             for (x in 0 until Constants.MAP_WIDTH) {
+                // Tiles are blocked if they contain an object of this layers
                 val isBlocked = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
-                collisionGrid[y * Constants.MAP_WIDTH + x] = isBlocked
+                collisionGrid[y * Constants.MAP_WIDTH + x] = isBlocked // Turns the 2D tiled grid into a 1D boolean array
             }
         }
     }
 
+    // Continues running in the background listening to messages from the server
     private fun runNetworkListener(inputStream: java.io.InputStream) {
-        val msgFactory = GameMessageFactory()
+        val msgFactory = GameMessageFactory() // Creates an instance of the message factory, to deserialise incoming messages
         try {
+            // Loops whilst the coroutine is still active in the background
             while (coroutineScope.isActive) {
-                val readBuffer = ByteArray(13)
+                val readBuffer = ByteArray(13) // The size of a movement message - may change as more messages are added
                 var bytesRead = 0
+
+                // Continues listening till all 13 bytes are read
                 while (bytesRead < 13) {
+                    // Fills the readBuffer array from bytesRead till we have 13 total
                     val result = inputStream.read(readBuffer, bytesRead, 13 - bytesRead)
                     if (result == -1) return
                     bytesRead += result
                 }
 
-                val msg = msgFactory.create(readBuffer)
+                val msg = msgFactory.create(readBuffer) // Message full, send to factory to be deserialised
+                // If the message is a player move message from a different player, if so handles their movement
                 if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) handleRemoteMove(msg)
             }
         } catch (e: Exception) {
@@ -133,20 +167,30 @@ class GameScreen : KtxScreen {
         }
     }
 
+    // Handles the movement of remote players
     private fun handleRemoteMove(msg: GameMessage.PlayerMoveMessage) {
+        // Moving player's is not thread safe, this moves it to be done so on the main thread at the start of the next frame
         Gdx.app.postRunnable {
+            // Find the entity whose ID matches the one from the message
             val remoteEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
                 .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return@postRunnable
 
             val startPos = TransformComponent.mapper[remoteEntity]!!.position
+
+            // Launches a coroutine in the background, one optimised for CPU tasks to keep fps high,
+            // done so to find a path for the remote player
             coroutineScope.launch(Dispatchers.Default) {
+                // Finds a path from the remote player's start pos to their received target from the server
                 val path = Pathfinding.findPath(startPos.x.toInt(), startPos.y.toInt(),
                     msg.posX.toInt(), msg.posY.toInt()) { x, y ->
+                    // Checks their path against the collision grid, avoiding obstacles
                     if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true
                     else collisionGrid[y * Constants.MAP_WIDTH + x]
                 }
+                // Return to the main thread to apply the new path for the entity, as doing so on a thread is not safe
                 Gdx.app.postRunnable {
                     PathComponent.mapper[remoteEntity]?.nodes?.apply {
+                        // Clears the current path, replacing it with the new one
                         clear()
                         addAll(path)
                     }
@@ -155,33 +199,45 @@ class GameScreen : KtxScreen {
         }
     }
 
+    // Handles rendering for the screen, as well as calling game updates
     override fun render(delta: Float) {
-        clearScreen(red = 0f, green = 0f, blue = 0f)
-        renderer.setView(camera)
-        renderer.render()
+        clearScreen(red = 0f, green = 0f, blue = 0f) // Clears the screen - black, ensuring a clean slate each time render is called
+        renderer.setView(camera) // So only visible tiles are drawn
+        renderer.render() // Draws the actual Tiled map
 
-        engine.update(delta)
+        engine.update(delta) // Loops through the added systems in order, updating them
 
-        update(delta)
+        update(delta) // Handles player input
     }
 
+    // Handles player update and calls validate paths, to ensure paths remain valid
     private fun update(deltaTime: Float) {
-        if (Gdx.input.justTouched()) {
-            val touch = viewport.unproject(Vector2(Gdx.input.x.toFloat(), Gdx.input.y.toFloat()))
+        // Checks whether the screen was JUST touched, this prevents holding/redundant calls
+        if (input.justTouched()) {
+            // Translates the touch coordinates to where it relates to in the game world
+            val touch = viewport.unproject(Vector2(input.x.toFloat(), input.y.toFloat()))
             val tileX = touch.x.toInt()
             val tileY = touch.y.toInt()
 
+            // Checks whether the touch is within the game grid
             if (tileX in 0 until Constants.MAP_WIDTH && tileY in 0 until Constants.MAP_HEIGHT) {
+                // Locate the player entity using the component, looking for a matching ID
                 val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
                     .find { PlayerComponent.mapper[it]?.id == playerID } ?: return
 
-                requestPath(playerEntity, tileX, tileY)
+                requestPath(playerEntity, tileX, tileY) // Requests a path to where was clicked from the current position
+
 
                 val socket = tcpSocket
+                // Checks whether the socket is active, connected, and not closed - so the message can actually be sent
                 if (socket != null && socket.isConnected && !socket.isClosed) {
+                    // Launches a background coroutine to send a message to the server, containing the player's target position
+                    // Done here as writing to a network is blocking
                     coroutineScope.launch(Dispatchers.IO) {
                         try {
+                            // Adds 0.5f to 'x' and 'y' so it's the centre of a tile
                             val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
+                            // Sends the serialised message to the server
                             socket.getOutputStream().write(moveMsg.serialise())
                         } catch (e: Exception) {
                             Gdx.app.error("NETWORK", "Send Error: ${e.message}")
@@ -190,31 +246,38 @@ class GameScreen : KtxScreen {
                 }
             }
         }
-        validatePaths(deltaTime)
+        validatePaths(deltaTime) // Checks whether a path is valid every 0.2 seconds
     }
 
+    // Requests a safe path from start pos to goal
     private fun requestPath(entity: Entity, goalX: Int, goalY: Int) {
         val transComp = TransformComponent.mapper[entity] ?: return
         val startX = transComp.position.x.toInt()
         val startY = transComp.position.y.toInt()
 
-        val currentReserved = mutableSetOf<Int>()
+        val currentReserved = mutableSetOf<Int>() // Mutable set of reserved tiles, currently occupied
+        // Find all players using their components
         engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class).get()).forEach { other ->
+            // Ignore this client's player
             if (other != entity) {
                 val pos = TransformComponent.mapper[other]!!.position
-                currentReserved.add(pos.y.toInt() * Constants.MAP_WIDTH + pos.x.toInt())
+                currentReserved.add(pos.y.toInt() * Constants.MAP_WIDTH + pos.x.toInt()) // Adds other client's players to the reserved set
             }
         }
 
+        // Launches a background coroutine, one optimised for CPU tasks to keep fps high, to run the pathfinding algorithm
         coroutineScope.launch(Dispatchers.Default) {
+            // Generates a new path, ensuring its within the grid and avoids obstacles
             val newPath = Pathfinding.findPath(startX, startY, goalX, goalY) { x, y ->
-                if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true
-                else collisionGrid[y * Constants.MAP_WIDTH + x] || currentReserved.contains(y * Constants.MAP_WIDTH + x)
+                if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true // Checks whether within grid
+                else collisionGrid[y * Constants.MAP_WIDTH + x] || currentReserved.contains(y * Constants.MAP_WIDTH + x) // Avoids obstacles and other players
             }
 
+            // Return to the main thread to apply the new path for the entity, as doing so on a thread is not safe
             Gdx.app.postRunnable {
                 val pathComp = PathComponent.mapper[entity]
                 pathComp?.nodes?.apply {
+                    // Clears the current path, replacing it with the new one
                     clear()
                     addAll(newPath)
                 }
@@ -222,45 +285,58 @@ class GameScreen : KtxScreen {
         }
     }
 
+    // Checks whether a path is still valid, not blocked by other player for example, every 0.2 seconds
     private fun validatePaths(deltaTime: Float) {
-        pathValidationTimer += deltaTime
-        if (pathValidationTimer < 0.2f) return
-        pathValidationTimer = 0f
+        pathValidationTimer += deltaTime // Increases timer for checking whether path is valid
+        if (pathValidationTimer < 0.2f) return // Checks whether 0.2 seconds have elapsed, only checks that often as to not waste computation
+        pathValidationTimer = 0f // Resets timer once 0.2 seconds have elapsed
 
+        // Gets all players with a path component
         val playersWithPath = engine.getEntitiesFor(allOf(PlayerComponent::class, PathComponent::class).get())
 
+        // Loops through all players with a path component
         playersWithPath.forEach { entity ->
+            // Skip entities without active path
             val path = PathComponent.mapper[entity]?.nodes ?: return@forEach
             if (path.isEmpty()) return@forEach
 
-            val goal = path.last()
+            val goal = path.last() // The last node, i.e. their goal
             val goalX = goal.x.toInt()
             val goalY = goal.y.toInt()
 
+            // Tile is blocked if obstacle or other player is in the way
             val isBlocked = collisionGrid[goalY * Constants.MAP_WIDTH + goalX] || isTileOccupiedByOther(goalX, goalY, entity)
 
+            // If path is blocked, request another path
             if (isBlocked) {
                 Gdx.app.log("PATHFINDING", "Destination stale for player ${PlayerComponent.mapper[entity]?.id}. Re-pathing...")
-                requestPath(entity, goalX, goalY)
+                requestPath(entity, goalX, goalY) // Requests another path
             }
         }
     }
 
+    // Checks whether a tile is occupied by another player
     private fun isTileOccupiedByOther(x: Int, y: Int, currentEntity: Entity): Boolean {
+        // Returns true or false for whether a player with transform component is in the same position as the client's target, not checking against itself
+        // Stops checking once one occupation is found, saving computational cycles
         return engine.getEntitiesFor(allOf(TransformComponent::class, PlayerComponent::class).get()).any {
             it != currentEntity && TransformComponent.mapper[it]!!.position.x.toInt() == x && TransformComponent.mapper[it]!!.position.y.toInt() == y
         }
     }
 
+    // Called whenever the window dimensions change to update the scaling logic
     override fun resize(width: Int, height: Int) {
         super.resize(width, height)
-        viewport.update(width, height)
+        viewport.update(width, height) // Recalculates and ensures the camera remains centred
         camera.update()
     }
 
+    // Manually dispose native resources to prevent memory leaks
     override fun dispose() {
-        coroutineScope.cancel()
-        tcpSocket?.close()
+        coroutineScope.cancel() // Kills background tasks
+        tcpSocket?.close() // Closes the network server connection
+
+        // Release GPU heavy resources
         map.disposeSafely()
         renderer.disposeSafely()
         image.disposeSafely()
