@@ -90,14 +90,14 @@ class AOEAttackComponent : Component, Pool.Poolable {
     var range = 2.0f // Radius of Box2D
     var damage = 10f
 
-    var cooldown = 2f
+    var cooldown = 0.5f
     var currentCooldown = 0f
 
     override fun reset() {
         range = 2.0f
         damage = 10f
 
-        cooldown = 2f
+        cooldown = 0.5f
         currentCooldown = 0f
     }
     companion object { val mapper = mapperFor<AOEAttackComponent>() }
