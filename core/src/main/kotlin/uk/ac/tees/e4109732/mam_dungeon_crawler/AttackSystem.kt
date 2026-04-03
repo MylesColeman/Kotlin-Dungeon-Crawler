@@ -8,7 +8,8 @@ import com.badlogic.gdx.physics.box2d.World
 import ktx.ashley.allOf
 import kotlin.math.sqrt
 
-class AttackSystem(private val localPlayerID: Int, private val world: World)
+// Handles player attacks
+class AttackSystem(private val localPlayerID: Int, private val world: World, private val factory: EntityFactory)
     : IteratingSystem(allOf(PlayerComponent::class, AOEAttackComponent::class).get()){
     private val gravity = FloatArray(3) // Gravity is always acting on the accelerometer, this is used to ignore it
     private val linearAcceleration = FloatArray(3) // Actual movement, with gravity subtracted
@@ -56,6 +57,8 @@ class AttackSystem(private val localPlayerID: Int, private val world: World)
     private fun triggerAOEAttack(player: Entity, attack: AOEAttackComponent) {
         attack.currentCooldown = attack.cooldown // Attacking - reset cooldown
         val playerPos = TransformComponent.mapper[player]?.position ?: return
+
+        factory.createAOERing(playerPos.x, playerPos.y, attack.range) // Creates the visual effect
 
         app.log("COMBAT", "Shake detected! Triggering AOE Attack: ${attack.damage} damage")
 

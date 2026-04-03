@@ -83,6 +83,7 @@ class GameScreen : KtxScreen {
         // Adds the used systems to the engine
         engine.addSystem(MovementSystem())
         engine.addSystem(AnimationSystem())
+        engine.addSystem(EffectSystem())
         engine.addSystem(RenderSystem(batch, camera))
 
         setupCollisionGrid() // Uses the Tiled map to setup a collision grid, using the obstacle layers
@@ -115,7 +116,7 @@ class GameScreen : KtxScreen {
 
                 // Adds the system once the ID is received, this way the attack system can handle only the local player's attacks
                 Gdx.app.postRunnable {
-                    engine.addSystem(AttackSystem(playerID, world))
+                    engine.addSystem(AttackSystem(playerID, world, factory))
                 }
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere

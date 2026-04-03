@@ -114,3 +114,19 @@ class PhysicsComponent : Component, Pool.Poolable {
     }
     companion object { val mapper = mapperFor<PhysicsComponent>() }
 }
+
+// Effect component, contains life time and max size used for scaling
+class EffectComponent : Component, Pool.Poolable {
+    var lifeTime = 0.3f     // Total duration of the effect
+    var currentLife = 0f    // Time elapsed
+
+    var maxScale = 0f       // The final radius we want to reach
+
+    override fun reset() {
+        lifeTime = 0.3f
+        currentLife = 0f
+
+        maxScale = 0f
+    }
+    companion object { val mapper = mapperFor<EffectComponent>() }
+}

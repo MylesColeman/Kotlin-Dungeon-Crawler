@@ -73,4 +73,21 @@ class EntityFactory(private val engine: PooledEngine, private val atlas: Texture
         // Animation has 0.15f delay between frames and loops, this looks good
         return Animation(0.15f, frames, Animation.PlayMode.LOOP)
     }
+
+    fun createAOERing(centerX: Float, centerY: Float, range: Float) = engine.entity {
+        with<TransformComponent> {
+            position.set(centerX, centerY)
+            z = 0.5f // Behind player but above floor
+        }
+        with<TextureComponent> {
+            region = atlas.findRegion("aoeAttack_ring")
+        }
+        with<EffectComponent> {
+            val region = atlas.findRegion("aoeAttack_ring")
+            // Converts to world units, can be divided by just width as its square
+            val nativeWidthUnits = region.regionWidth * Constants.UNIT_SCALE
+            // Multiplied by 2 to cover the diameter, then divided by the native width to get the appropriate scale
+            maxScale = (range * 2f) / nativeWidthUnits
+        }
+    }
 }
