@@ -74,7 +74,7 @@ class AttackSystem(private val localPlayerID: Int, private val world: World, pri
             val entity = body.userData as? Entity // Retrieve the Ashley Entity attached to the Box2D
 
             // Ensure the entity isn't a player and isn't null
-            if (entity != null && entity != player /*&& !PlayerComponent.mapper.has(entity)*/) {
+            if (entity != null && entity != player && !PlayerComponent.mapper.has(entity)) {
                 val enemyPos = TransformComponent.mapper[entity]?.position ?: return@QueryAABB true
 
                 // Check whether the entity is within the attack range
