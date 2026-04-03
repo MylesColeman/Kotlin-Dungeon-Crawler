@@ -83,3 +83,21 @@ class PlayerComponent : Component, Pool.Poolable {
     override fun reset() { id = -1 }
     companion object { val mapper = mapperFor<PlayerComponent>() }
 }
+
+// AOE attack component, contains the range and damage of an attack as well as the cooldown between attacks
+class AOEAttackComponent : Component, Pool.Poolable {
+    var range = 2.0f // Radius of Box2D
+    var damage = 10f
+
+    var cooldown = 2f
+    var currentCooldown = 0f
+
+    override fun reset() {
+        range = 2.0f
+        damage = 10f
+
+        cooldown = 2f
+        currentCooldown = 0f
+    }
+    companion object { val mapper = mapperFor<AOEAttackComponent>() }
+}

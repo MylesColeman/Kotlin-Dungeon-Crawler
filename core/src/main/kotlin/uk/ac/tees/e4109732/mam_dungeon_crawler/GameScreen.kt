@@ -109,6 +109,11 @@ class GameScreen : KtxScreen {
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
                 Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
 
+                // Adds the system once the ID is received, this way the attack system can handle only the local player's attacks
+                Gdx.app.postRunnable {
+                    engine.addSystem(AttackSystem(playerID))
+                }
+
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
             } catch (e: Exception) {
                 Gdx.app.error("NETWORK", "Connection Lost: ${e.message}")
