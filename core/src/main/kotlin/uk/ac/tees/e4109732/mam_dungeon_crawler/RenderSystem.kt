@@ -61,7 +61,7 @@ class RenderSystem(private val batch: SpriteBatch, private val camera: Orthograp
                     batch.draw(
                         region,
                         transform.position.x - (width / 2f),
-                        transform.position.y - (height / 2f),
+                        transform.position.y - 0.5f,
                         width,
                         height
                     )

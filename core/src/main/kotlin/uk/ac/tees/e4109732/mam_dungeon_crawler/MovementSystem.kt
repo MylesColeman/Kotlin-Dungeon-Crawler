@@ -45,6 +45,7 @@ class MovementSystem : IteratingSystem(
                 transform.position.add(tempVec) // Moves the entity by the just calculated vector
             }
         } else {
+            transform.position.set(movement.target) // Just moves the entity to target as distance is too small for movement amount
             anim.isMoving = false // Takes the entity out of the movement state
             movement.targetTile = null // Resets target tile
         }
