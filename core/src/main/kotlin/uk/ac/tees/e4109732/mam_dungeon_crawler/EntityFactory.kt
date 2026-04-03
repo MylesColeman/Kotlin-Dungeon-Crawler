@@ -4,18 +4,41 @@ import com.badlogic.ashley.core.PooledEngine
 import com.badlogic.gdx.graphics.g2d.Animation
 import com.badlogic.gdx.graphics.g2d.TextureAtlas
 import com.badlogic.gdx.graphics.g2d.TextureRegion
+import com.badlogic.gdx.physics.box2d.BodyDef
+import com.badlogic.gdx.physics.box2d.CircleShape
+import com.badlogic.gdx.physics.box2d.World
 import com.badlogic.gdx.utils.Array as GdxArray
 import ktx.ashley.entity
 import ktx.ashley.with
 
 // Used to create entities, uses object pooling to reuse components - for efficiency and memory safety
-class EntityFactory(private val engine: PooledEngine, private val atlas: TextureAtlas) {
+class EntityFactory(private val engine: PooledEngine, private val atlas: TextureAtlas, private val world: World) {
     // Used to create players, assigning the correct components
     fun createPlayer(id: Int, spawnX: Float, spawnY: Float) = engine.entity {
         with<PlayerComponent> { this.id = id } // Passes in the assigned ID for the component
         with<TransformComponent> {
             position.set(spawnX, spawnY) // Sets default transform using spawn points assigned on Tiled map
             z = 1f // Above most other entities so they're always visible
+        }
+        with<PhysicsComponent> {
+            // Creates the player physics body, the instructions used to create the box2D
+            val bodyDef = BodyDef().apply {
+                type = BodyDef.BodyType.DynamicBody
+                position.set(spawnX, spawnY)
+                fixedRotation = true
+            }
+
+            // Creates the player's body, the box2D
+            body = world.createBody(bodyDef).apply {
+                userData = this@entity.entity // Attach this entity to the Box2D body as a tag
+
+                // Body is a circle, slightly smaller than the tile size to prevent snagging
+                val shape = CircleShape().apply { radius = 0.4f }
+                createFixture(shape, 1f).apply {
+                    isSensor = true // Used for detecting overlaps, not blocking collisions
+                }
+                shape.dispose() // Disposed as no longer needed, helps to prevent memory leaks
+            }
         }
         with<MovementComponent> {
             target.set(spawnX, spawnY) // Default target, redundant

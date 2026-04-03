@@ -4,6 +4,7 @@ import com.badlogic.ashley.core.Component
 import com.badlogic.gdx.graphics.g2d.Animation
 import com.badlogic.gdx.graphics.g2d.TextureRegion
 import com.badlogic.gdx.math.Vector2
+import com.badlogic.gdx.physics.box2d.Body
 import com.badlogic.gdx.utils.Pool
 import ktx.ashley.mapperFor
 
@@ -100,4 +101,16 @@ class AOEAttackComponent : Component, Pool.Poolable {
         currentCooldown = 0f
     }
     companion object { val mapper = mapperFor<AOEAttackComponent>() }
+}
+
+// Physics component, contains the Box2D body
+class PhysicsComponent : Component, Pool.Poolable {
+    var body: Body? = null
+
+    override fun reset() {
+        // Body must be destroyed from the world before being nullified
+        body?.world?.destroyBody(body)
+        body = null
+    }
+    companion object { val mapper = mapperFor<PhysicsComponent>() }
 }

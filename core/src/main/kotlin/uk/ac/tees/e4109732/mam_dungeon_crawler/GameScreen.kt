@@ -22,6 +22,7 @@ import ktx.assets.toInternalFile
 import java.net.Socket
 import com.badlogic.gdx.maps.tiled.TmxMapLoader
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer
+import com.badlogic.gdx.physics.box2d.World
 import com.badlogic.gdx.utils.viewport.FitViewport
 import ktx.tiled.type
 import ktx.tiled.x
@@ -56,6 +57,9 @@ class GameScreen : KtxScreen {
     private val engine = PooledEngine() // Manages entities, their systems and components
     private lateinit var factory: EntityFactory // Used to create entities
 
+    // Box2D physics
+    private val world = World(Vector2(0f, 0f), true) // Gravity set to 0 as 2D topdown game
+
     // Player variables
     private var playerID: Int = -1 // Defaults to -1, i.e. not set
     private var pathValidationTimer = 0f // Timer to check whether path is still valid every so often
@@ -75,7 +79,7 @@ class GameScreen : KtxScreen {
 
 
         atlas = TextureAtlas("DungeonCrawlerEntities.atlas".toInternalFile()) // Atlas holding all textures, more efficient than individual images
-        factory = EntityFactory(engine, atlas) // Creates an instance of the entity factory to create entities for this screen
+        factory = EntityFactory(engine, atlas, world) // Creates an instance of the entity factory to create entities for this screen
         // Adds the used systems to the engine
         engine.addSystem(MovementSystem())
         engine.addSystem(AnimationSystem())
@@ -111,7 +115,7 @@ class GameScreen : KtxScreen {
 
                 // Adds the system once the ID is received, this way the attack system can handle only the local player's attacks
                 Gdx.app.postRunnable {
-                    engine.addSystem(AttackSystem(playerID))
+                    engine.addSystem(AttackSystem(playerID, world))
                 }
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
@@ -209,6 +213,9 @@ class GameScreen : KtxScreen {
         clearScreen(red = 0f, green = 0f, blue = 0f) // Clears the screen - black, ensuring a clean slate each time render is called
         renderer.setView(camera) // So only visible tiles are drawn
         renderer.render() // Draws the actual Tiled map
+
+        // Advances the world 60 times per second, 6 and 2 chosen as industry-standard - allows for good performance on top of good physics
+        world.step(1/60f, 6, 2)
 
         engine.update(delta) // Loops through the added systems in order, updating them
 

@@ -8,7 +8,7 @@ import ktx.ashley.allOf
 // Used to move an entity from their current position to a target, translating the pathfinding nodes into smooth movement
 // Only moves entities with transform, movement, path and animation components
 class MovementSystem : IteratingSystem(
-    allOf(TransformComponent::class, MovementComponent::class, PathComponent::class, AnimationComponent::class).get()) {
+    allOf(TransformComponent::class, MovementComponent::class, PathComponent::class, AnimationComponent::class, PhysicsComponent::class).get()) {
     private val tempVec = Vector2() // Used for moving the entity, to avoid creating new objects every frame
 
     // Updates the entities transform, smoothly moving them towards a pathfinding node
@@ -17,6 +17,7 @@ class MovementSystem : IteratingSystem(
         val movement = MovementComponent.mapper[entity] ?: return
         val path = PathComponent.mapper[entity] ?: return
         val anim = AnimationComponent.mapper[entity] ?: return
+        val physics = PhysicsComponent.mapper[entity] ?: return
 
         // Checks whether there's nodes to move towards and the distance isn't negligible
         if (path.nodes.isNotEmpty() && transform.position.dst(movement.target) < 0.1f) {
@@ -47,5 +48,6 @@ class MovementSystem : IteratingSystem(
             anim.isMoving = false // Takes the entity out of the movement state
             movement.targetTile = null // Resets target tile
         }
+        physics.body?.setTransform(transform.position, 0f) // Syncs the physics body with the transform
     }
 }
