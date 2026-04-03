@@ -24,13 +24,16 @@ class AnimationSystem : IteratingSystem(allOf(AnimationComponent::class, Texture
             val dx = moveComp.target.x - transComp.position.x
             val dy = moveComp.target.y - transComp.position.y
 
-            // Checks which direction entity is moving
-            anim.currentState = when {
-                // Difference in y is greater than difference in x, entity moving up or down
-                abs(dy) > abs(dx) -> {
-                    if (dy > 0) "walk_up" else "walk_down" // Checks whether y difference is positive or negative, up or down
+            // Checks to ensure the distance isn't negligible
+            if (abs(dx) > 0.01f || abs(dy) > 0.01f) {
+                // Checks which direction entity is moving
+                anim.currentState = when {
+                    // Difference in y is greater than difference in x, entity moving up or down
+                    abs(dy) > abs(dx) -> {
+                        if (dy > 0) "walk_up" else "walk_down" // Checks whether y difference is positive or negative, up or down
+                    }
+                    else -> "walk_horizontal"  // Otherwise moving horizontally, sprites are just flipped for this to save on memory
                 }
-                else -> "walk_horizontal"  // Otherwise moving horizontally, sprites are just flipped for this to save on memory
             }
 
             val region = anim.animations[anim.currentState]?.getKeyFrame(anim.stateTime)
