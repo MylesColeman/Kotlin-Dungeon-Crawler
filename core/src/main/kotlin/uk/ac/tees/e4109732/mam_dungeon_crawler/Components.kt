@@ -85,17 +85,16 @@ class PlayerComponent : Component, Pool.Poolable {
     companion object { val mapper = mapperFor<PlayerComponent>() }
 }
 
-// AOE attack component, contains the range and damage of an attack as well as the cooldown between attacks
+// AOE attack component, contains the cooldown between attacks and the range
 class AOEAttackComponent : Component, Pool.Poolable {
-    var range = 2.0f // Radius of Box2D
-    var damage = 10f
+    var range = 2f // Actual range handled on server, this is just used for effects/visualisation
 
+    // Cooldown handled on server, kept here to ensure messages aren't being spammed
     var cooldown = 0.5f
     var currentCooldown = 0f
 
     override fun reset() {
-        range = 2.0f
-        damage = 10f
+        range = 2f
 
         cooldown = 0.5f
         currentCooldown = 0f
@@ -117,10 +116,10 @@ class PhysicsComponent : Component, Pool.Poolable {
 
 // Effect component, contains life time and max size used for scaling
 class EffectComponent : Component, Pool.Poolable {
-    var lifeTime = 0.3f     // Total duration of the effect
-    var currentLife = 0f    // Time elapsed
+    var lifeTime = 0.3f // Total duration of the effect
+    var currentLife = 0f // Time elapsed
 
-    var maxScale = 0f       // The final radius we want to reach
+    var maxScale = 0f // The final radius we want to reach
 
     override fun reset() {
         lifeTime = 0.3f

@@ -12,7 +12,8 @@ interface Serialisable {
 // Holds all game message types and assigns them an ID
 // This ID is used by the server, allowing it to recognise what message has been received nad how to deserialise it
 enum class GameMessageType(val id: Byte) {
-    PLAYER_MOVE(1);
+    PLAYER_MOVE(1),
+    PLAYER_ATTACK(2);
 
     // Companion object to help recognise message type, looking at the assigned byte
     companion object {
@@ -47,6 +48,22 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
             }
         }
     }
+
+    // Player attack - sends position
+    data class PlayerAttackMessage(val id: Int): GameMessage(GameMessageType.PLAYER_ATTACK) {
+        // Capacity 5 as, Byte(1) + Int(4)
+        override fun serialise(): ByteArray = ByteBuffer.allocate(5).apply {
+            order(ByteOrder.LITTLE_ENDIAN)
+            put(type.id)
+            putInt(id)
+        }.array()
+
+        companion object {
+            fun deserialise(bb: ByteBuffer): PlayerAttackMessage {
+                return PlayerAttackMessage(bb.int)
+            }
+        }
+    }
 }
 
 // Converts incoming messages from the server back into 'GameMessage's
@@ -58,7 +75,9 @@ class GameMessageFactory {
 
         // Using that first byte assigns the correct message
         return when (type) {
-            GameMessageType.PLAYER_MOVE -> GameMessage.PlayerMoveMessage.deserialise(bb) // Deserialises the message so it can be used
+            // Deserialises messages so they can be used
+            GameMessageType.PLAYER_MOVE -> GameMessage.PlayerMoveMessage.deserialise(bb)
+            GameMessageType.PLAYER_ATTACK -> GameMessage.PlayerAttackMessage.deserialise(bb)
         }
     }
 }

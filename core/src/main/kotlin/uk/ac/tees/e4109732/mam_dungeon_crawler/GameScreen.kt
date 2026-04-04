@@ -114,9 +114,17 @@ class GameScreen : KtxScreen {
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
                 Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
 
-                // Adds the system once the ID is received, this way the attack system can handle only the local player's attacks
+                // Adds the system once the ID is received, ensuring the correct player's attack is handled
                 Gdx.app.postRunnable {
-                    engine.addSystem(AttackSystem(playerID, world, factory))
+                    engine.addSystem(AttackSystem(playerID, factory) { msg ->
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                tcpSocket?.getOutputStream()?.write(msg.serialise())
+                            } catch (e: Exception) {
+                                Gdx.app.error("NETWORK", "Failed to send attack: ${e.message}")
+                            }
+                        }
+                    })
                 }
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
@@ -157,20 +165,42 @@ class GameScreen : KtxScreen {
         try {
             // Loops whilst the coroutine is still active in the background
             while (coroutineScope.isActive) {
-                val readBuffer = ByteArray(13) // The size of a movement message - may change as more messages are added
+                // Reads the type of message to determine the length
+                val typeByte = inputStream.read()
+                if (typeByte == -1) return // Message not read/invalid
+
+                val type = GameMessageType.fromByte(typeByte.toByte())
+
+                val remainingSize = when (type) {
+                    GameMessageType.PLAYER_MOVE -> 12 // ID (4) + xPos (4) + yPos (4)
+                    GameMessageType.PLAYER_ATTACK -> 4 // ID (4)
+                }
+
+                val readBuffer = ByteArray(remainingSize) // The size of a message
                 var bytesRead = 0
 
                 // Continues listening till all 13 bytes are read
-                while (bytesRead < 13) {
-                    // Fills the readBuffer array from bytesRead till we have 13 total
-                    val result = inputStream.read(readBuffer, bytesRead, 13 - bytesRead)
+                while (bytesRead < remainingSize) {
+                    // Fills the readBuffer array from bytesRead till we have the total
+                    val result = inputStream.read(readBuffer, bytesRead, remainingSize - bytesRead)
                     if (result == -1) return
                     bytesRead += result
                 }
 
-                val msg = msgFactory.create(readBuffer) // Message full, send to factory to be deserialised
-                // If the message is a player move message from a different player, if so handles their movement
-                if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) handleRemoteMove(msg)
+                // Reconstructs and deserialises the message
+                val fullMsg = ByteArray(remainingSize + 1)
+                fullMsg[0] = typeByte.toByte()
+                System.arraycopy(readBuffer, 0, fullMsg, 1, remainingSize)
+                val msg = msgFactory.create(fullMsg) // Message full, send to factory to be deserialised
+
+                // If the message is from a different player, handles it
+                Gdx.app.postRunnable {
+                    if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) {
+                        handleRemoteMove(msg)
+                    } else if (msg is GameMessage.PlayerAttackMessage && msg.id != playerID) {
+                        handleRemoteAttack(msg)
+                    }
+                }
             }
         } catch (e: Exception) {
             Gdx.app.error("NETWORK", "Listener Lost: ${e.message}")
@@ -207,6 +237,20 @@ class GameScreen : KtxScreen {
                 }
             }
         }
+    }
+
+    // Handles the attacks of remote players
+    private fun handleRemoteAttack(msg: GameMessage.PlayerAttackMessage) {
+        val remoteEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
+            .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return
+
+        val pos = TransformComponent.mapper[remoteEntity]?.position ?: return
+        val attackComp = AOEAttackComponent.mapper[remoteEntity] ?: return
+
+        // Draw the visual ring at the remote player's location
+        factory.createAOERing(pos.x, pos.y, attackComp.range)
+
+        Gdx.app.log("COMBAT", "Remote player ${msg.id} performed an attack.")
     }
 
     // Handles rendering for the screen, as well as calling game updates

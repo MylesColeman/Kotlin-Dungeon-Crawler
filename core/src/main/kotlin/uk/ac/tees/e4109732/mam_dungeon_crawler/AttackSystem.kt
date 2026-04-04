@@ -4,17 +4,18 @@ import com.badlogic.ashley.core.Entity
 import com.badlogic.ashley.systems.IteratingSystem
 import com.badlogic.gdx.Gdx.app
 import com.badlogic.gdx.Gdx.input
-import com.badlogic.gdx.physics.box2d.World
 import ktx.ashley.allOf
 import kotlin.math.sqrt
 
 // Handles player attacks
-class AttackSystem(private val localPlayerID: Int, private val world: World, private val factory: EntityFactory)
+class AttackSystem(private val localPlayerID: Int, private val factory: EntityFactory,
+                   private val onAttackRequest: (GameMessage.PlayerAttackMessage) -> Unit)
     : IteratingSystem(allOf(PlayerComponent::class, AOEAttackComponent::class).get()){
     private val gravity = FloatArray(3) // Gravity is always acting on the accelerometer, this is used to ignore it
     private val linearAcceleration = FloatArray(3) // Actual movement, with gravity subtracted
     private val alpha = 0.15f // How responsive to phone movements it is
 
+    // Checks for phone shakes
     override fun processEntity(entity: Entity, deltaTime: Float) {
         val playerComp = PlayerComponent.mapper[entity] ?: return
         val attackComp = AOEAttackComponent.mapper[entity] ?: return
@@ -60,35 +61,8 @@ class AttackSystem(private val localPlayerID: Int, private val world: World, pri
 
         factory.createAOERing(playerPos.x, playerPos.y, attack.range) // Creates the visual effect
 
-        app.log("COMBAT", "Shake detected! Triggering AOE Attack.")
+        app.log("COMBAT", "Shake detected! Sending attack to server.")
 
-        // Defines bounds for the AOE attack
-        val lowerX = playerPos.x - attack.range
-        val lowerY = playerPos.y - attack.range
-        val upperX = playerPos.x + attack.range
-        val upperY = playerPos.y + attack.range
-
-        // Queries the world for any entities within the bounds
-        world.QueryAABB({ fixture ->
-            val body = fixture.body
-            val entity = body.userData as? Entity // Retrieve the Ashley Entity attached to the Box2D
-
-            // Ensure the entity isn't a player and isn't null
-            if (entity != null && entity != player && !PlayerComponent.mapper.has(entity)) {
-                val enemyPos = TransformComponent.mapper[entity]?.position ?: return@QueryAABB true
-
-                // Check whether the entity is within the attack range
-                if (playerPos.dst(enemyPos) <= attack.range) {
-                    applyDamage(entity, attack.damage) // Apply damage to the entity
-                }
-            }
-            true // Continues checking for other collisions
-        }, lowerX, lowerY, upperX, upperY)
-    }
-
-    // Temporary for testing
-    private fun applyDamage(target: Entity, amount: Float) {
-        val targetID = PlayerComponent.mapper[target]?.id
-        app.log("COMBAT", "Entity $targetID took $amount damage!")
+        onAttackRequest(GameMessage.PlayerAttackMessage(localPlayerID)) // Sends the attack request to the server
     }
 }
