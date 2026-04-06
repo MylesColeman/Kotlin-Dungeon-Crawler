@@ -290,26 +290,31 @@ class GameScreen : KtxScreen {
 
             // Checks whether the touch is within the game grid
             if (tileX in 0 until Constants.MAP_WIDTH && tileY in 0 until Constants.MAP_HEIGHT) {
-                // Locate the player entity using the component, looking for a matching ID
-                val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
-                    .find { PlayerComponent.mapper[it]?.id == playerID } ?: return
+                val isBlocked = collisionGrid[tileY * Constants.MAP_WIDTH + tileX]
 
-                requestPath(playerEntity, tileX, tileY) // Requests a path to where was clicked from the current position
+                // Check to ensure path isn't blocked
+                if (!isBlocked) {
+                    // Locate the player entity using the component, looking for a matching ID
+                    val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
+                        .find { PlayerComponent.mapper[it]?.id == playerID } ?: return
+
+                    requestPath(playerEntity, tileX, tileY) // Requests a path to where was clicked from the current position
 
 
-                val socket = tcpSocket
-                // Checks whether the socket is active, connected, and not closed - so the message can actually be sent
-                if (socket != null && socket.isConnected && !socket.isClosed) {
-                    // Launches a background coroutine to send a message to the server, containing the player's target position
-                    // Done here as writing to a network is blocking
-                    coroutineScope.launch(Dispatchers.IO) {
-                        try {
-                            // Adds 0.5f to 'x' and 'y' so it's the centre of a tile
-                            val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
-                            // Sends the serialised message to the server
-                            socket.getOutputStream().write(moveMsg.serialise())
-                        } catch (e: Exception) {
-                            Gdx.app.error("NETWORK", "Send Error: ${e.message}")
+                    val socket = tcpSocket
+                    // Checks whether the socket is active, connected, and not closed - so the message can actually be sent
+                    if (socket != null && socket.isConnected && !socket.isClosed) {
+                        // Launches a background coroutine to send a message to the server, containing the player's target position
+                        // Done here as writing to a network is blocking
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                // Adds 0.5f to 'x' and 'y' so it's the centre of a tile
+                                val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
+                                // Sends the serialised message to the server
+                                socket.getOutputStream().write(moveMsg.serialise())
+                            } catch (e: Exception) {
+                                Gdx.app.error("NETWORK", "Send Error: ${e.message}")
+                            }
                         }
                     }
                 }
