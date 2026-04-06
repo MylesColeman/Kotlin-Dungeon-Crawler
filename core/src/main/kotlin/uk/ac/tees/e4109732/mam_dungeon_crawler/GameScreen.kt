@@ -124,6 +124,12 @@ class GameScreen : KtxScreen {
                 tcpSocket?.getOutputStream()?.write(initialPosMsg.serialise())
                 Gdx.app.log("NETWORK", "Initial position synced: ($startX, $startY)")
 
+                val gridBytes = collisionGrid.map { if (it) 1.toByte() else 0.toByte() }.toByteArray()
+                val mapMsg = GameMessage.MapDataMessage(gridBytes)
+                tcpSocket?.getOutputStream()?.write(mapMsg.serialise())
+
+                Gdx.app.log("NETWORK", "Map Data Synced: ${gridBytes.size} tiles")
+
                 // Adds the system once the ID is received, ensuring the correct player's attack is handled
                 Gdx.app.postRunnable {
                     engine.addSystem(AttackSystem(playerID, factory) { msg ->
@@ -186,6 +192,7 @@ class GameScreen : KtxScreen {
                 val remainingSize = when (type) {
                     GameMessageType.PLAYER_MOVE -> 12 // ID (4) + xPos (4) + yPos (4)
                     GameMessageType.PLAYER_ATTACK -> 4 // ID (4)
+                    GameMessageType.MAP_DATA -> 220 // Width (20) * Height (11)
                 }
 
                 val readBuffer = ByteArray(remainingSize) // The size of a message

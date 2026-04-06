@@ -13,7 +13,8 @@ interface Serialisable {
 // This ID is used by the server, allowing it to recognise what message has been received nad how to deserialise it
 enum class GameMessageType(val id: Byte) {
     PLAYER_MOVE(1),
-    PLAYER_ATTACK(2);
+    PLAYER_ATTACK(2),
+    MAP_DATA(3);
 
     // Companion object to help recognise message type, looking at the assigned byte
     companion object {
@@ -64,6 +65,36 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
             }
         }
     }
+
+    // Map Data - sends the collision grid to the server
+    data class MapDataMessage(val grid: ByteArray): GameMessage(GameMessageType.MAP_DATA) {
+        // Capacity 221 as, Byte(1) + Bytes(220)
+        // 220 = Grid Width (20) * Height (11)
+        override fun serialise(): ByteArray = ByteBuffer.allocate(221).apply {
+            order(ByteOrder.LITTLE_ENDIAN)
+            put(type.id)
+            put(grid)
+        }.array()
+
+        // Compares content and not memory address
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is MapDataMessage) return false
+            return grid.contentEquals(other.grid)
+        }
+        override fun hashCode(): Int {
+            return grid.contentHashCode()
+        }
+
+        // Unlikely to be needed, no harm in adding though
+        companion object {
+            fun deserialise(bb: ByteBuffer): MapDataMessage {
+                val g = ByteArray(220) // Fixed size 20 * 11
+                bb.get(g)
+                return MapDataMessage(g)
+            }
+        }
+    }
 }
 
 // Converts incoming messages from the server back into 'GameMessage's
@@ -78,6 +109,7 @@ class GameMessageFactory {
             // Deserialises messages so they can be used
             GameMessageType.PLAYER_MOVE -> GameMessage.PlayerMoveMessage.deserialise(bb)
             GameMessageType.PLAYER_ATTACK -> GameMessage.PlayerAttackMessage.deserialise(bb)
+            GameMessageType.MAP_DATA -> GameMessage.MapDataMessage.deserialise(bb)
         }
     }
 }
