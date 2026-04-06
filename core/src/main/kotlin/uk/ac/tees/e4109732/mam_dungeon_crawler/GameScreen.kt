@@ -86,7 +86,7 @@ class GameScreen : KtxScreen {
         engine.addSystem(EffectSystem())
         engine.addSystem(RenderSystem(batch, camera))
 
-        setupCollisionGrid() // Uses the Tiled map to setup a collision grid, using the obstacle layers
+        val spawnPoints = setupCollisionGrid() // Uses the Tiled map to setup a collision grid, using the obstacle layers
 
         // Launches a coroutine in the background, this is used to establish a connection with the server - tcp so its persistent
         coroutineScope.launch(Dispatchers.IO) {
@@ -114,6 +114,16 @@ class GameScreen : KtxScreen {
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
                 Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
 
+                // Sets up the initial position of the player for the server
+                val mySpawn = spawnPoints.getOrElse(playerID) { spawnPoints.first() }
+                val startX = mySpawn.x * Constants.UNIT_SCALE
+                val startY = mySpawn.y * Constants.UNIT_SCALE
+
+                // Sends the initial player start pos to the server
+                val initialPosMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
+                tcpSocket?.getOutputStream()?.write(initialPosMsg.serialise())
+                Gdx.app.log("NETWORK", "Initial position synced: ($startX, $startY)")
+
                 // Adds the system once the ID is received, ensuring the correct player's attack is handled
                 Gdx.app.postRunnable {
                     engine.addSystem(AttackSystem(playerID, factory) { msg ->
@@ -135,7 +145,7 @@ class GameScreen : KtxScreen {
     }
 
     // Sets up the collision grid and handles player spawn points
-    private fun setupCollisionGrid() {
+    private fun setupCollisionGrid(): List<PointMapObject> {
         // Looks at the specific layer, specific objects of specific type which is used for player spawn points and puts them in a list
         val spawnLayer = map.layers["Spawn_Points"]?.objects ?: throw Exception("Spawn_Points layer not found")
         val spawnPoints = spawnLayer.filterIsInstance<PointMapObject>().filter { it.type == "SpawnPoint" }
@@ -157,6 +167,8 @@ class GameScreen : KtxScreen {
                 collisionGrid[y * Constants.MAP_WIDTH + x] = isBlocked // Turns the 2D tiled grid into a 1D boolean array
             }
         }
+
+        return spawnPoints
     }
 
     // Continues running in the background listening to messages from the server
