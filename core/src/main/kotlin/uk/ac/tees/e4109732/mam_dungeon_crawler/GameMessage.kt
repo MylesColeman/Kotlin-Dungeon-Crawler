@@ -1,5 +1,6 @@
 package uk.ac.tees.e4109732.mam_dungeon_crawler
 
+import com.badlogic.gdx.math.Vector2
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -14,7 +15,8 @@ interface Serialisable {
 enum class GameMessageType(val id: Byte) {
     PLAYER_MOVE(1),
     PLAYER_ATTACK(2),
-    MAP_DATA(3);
+    MAP_DATA(3),
+    WORLD_STATE(4);
 
     // Companion object to help recognise message type, looking at the assigned byte
     companion object {
@@ -34,7 +36,7 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
 
     // Player movement - sends position
     data class PlayerMoveMessage(val id: Int, val posX: Float, val posY: Float): GameMessage(GameMessageType.PLAYER_MOVE) {
-        // Capacity 13 as, Byte(1) + Int(4) + Float(4) + Float(4) = 13
+        // Capacity 13 as, Byte(1) + Int(4) + Float(4) + Float(4)
         override fun serialise(): ByteArray = ByteBuffer.allocate(13).apply {
             order(ByteOrder.LITTLE_ENDIAN)
             put(type.id)
@@ -95,14 +97,48 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
             }
         }
     }
+
+    // World State - for receiving all player/entity positions
+    data class WorldStateMessage(val positions: Map<Int, Vector2>) : GameMessage(GameMessageType.WORLD_STATE) {
+        override fun serialise(): ByteArray {
+            // Byte(1) + Int(4) + (count * Int(4) + Float(4) + Float(4))
+            val capacity = 1 + 4 + (positions.size * 12)
+            return ByteBuffer.allocate(capacity).apply {
+                order(ByteOrder.LITTLE_ENDIAN)
+                put(type.id)
+                putInt(positions.size)
+                positions.forEach { (id, pos) ->
+                    putInt(id)
+                    putFloat(pos.x)
+                    putFloat(pos.y)
+                }
+            }.array()
+        }
+
+        companion object {
+            fun deserialise(bb: ByteBuffer): WorldStateMessage {
+                val count = bb.int
+                val positions = mutableMapOf<Int, Vector2>()
+                repeat(count) {
+                    val id = bb.int
+                    val x = bb.float
+                    val y = bb.float
+                    positions[id] = Vector2(x, y)
+                }
+                return WorldStateMessage(positions)
+            }
+        }
+    }
 }
 
 // Converts incoming messages from the server back into 'GameMessage's
 class GameMessageFactory {
     // Creates 'GameMessage's from incoming ByteArrays
-    fun create(ba: ByteArray): GameMessage {
+    fun create(ba: ByteArray): GameMessage? {
         val bb = ByteBuffer.wrap(ba).order(ByteOrder.LITTLE_ENDIAN) // Allows the array to be read
-        val type = GameMessageType.fromByte(bb.get()) // Looks at the first byte and decides what type of message it is
+
+        val typeByte = bb.get()
+        val type = try { GameMessageType.fromByte(typeByte) } catch (_: Exception) { return null } // Looks at the first byte and decides what type of message it is
 
         // Using that first byte assigns the correct message
         return when (type) {
@@ -110,6 +146,7 @@ class GameMessageFactory {
             GameMessageType.PLAYER_MOVE -> GameMessage.PlayerMoveMessage.deserialise(bb)
             GameMessageType.PLAYER_ATTACK -> GameMessage.PlayerAttackMessage.deserialise(bb)
             GameMessageType.MAP_DATA -> GameMessage.MapDataMessage.deserialise(bb)
+            GameMessageType.WORLD_STATE -> GameMessage.WorldStateMessage.deserialise(bb)
         }
     }
 }

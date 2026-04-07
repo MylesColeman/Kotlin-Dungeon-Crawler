@@ -30,6 +30,7 @@ import ktx.tiled.y
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import ktx.ashley.allOf
+import java.io.InputStream
 import java.net.InetSocketAddress
 
 // Main game screen
@@ -178,7 +179,7 @@ class GameScreen : KtxScreen {
     }
 
     // Continues running in the background listening to messages from the server
-    private fun runNetworkListener(inputStream: java.io.InputStream) {
+    private fun runNetworkListener(inputStream: InputStream) {
         val msgFactory = GameMessageFactory() // Creates an instance of the message factory, to deserialise incoming messages
         try {
             // Loops whilst the coroutine is still active in the background
@@ -187,37 +188,79 @@ class GameScreen : KtxScreen {
                 val typeByte = inputStream.read()
                 if (typeByte == -1) return // Message not read/invalid
 
-                val type = GameMessageType.fromByte(typeByte.toByte())
+                val type = try { GameMessageType.fromByte(typeByte.toByte()) } catch(_: Exception) { continue }
 
-                val remainingSize = when (type) {
-                    GameMessageType.PLAYER_MOVE -> 12 // ID (4) + xPos (4) + yPos (4)
-                    GameMessageType.PLAYER_ATTACK -> 4 // ID (4)
-                    GameMessageType.MAP_DATA -> 220 // Width (20) * Height (11)
+                // Checks if the message is dynamic or fixed
+                val fullMsg = if (type == GameMessageType.WORLD_STATE) {
+                    val countBuffer = ByteArray(4) // Holds the count from the message, the number of positions
+                    var countRead = 0
+
+                    // Continues listening till all 4 bytes are read
+                    while (countRead < 4) {
+                        // Fills the countBuffer array from countRead till we have the total
+                        val result = inputStream.read(countBuffer, countRead, 4 - countRead)
+                        if (result == -1) return
+                        countRead += result
+                    }
+                    // Convert those 4 raw bytes into a readable Integer using Little Endian (C++ standard)
+                    val count = ByteBuffer.wrap(countBuffer).order(ByteOrder.LITTLE_ENDIAN).int
+
+                    // Calculates how many more remaining bytes there are, each position is 12 bytes
+                    val remainingSize = count * 12
+                    val readBuffer = ByteArray(remainingSize)
+                    var bytesRead = 0
+
+                    // Loops again till all entities data is received
+                    while (bytesRead < remainingSize) {
+                        val result = inputStream.read(readBuffer, bytesRead, remainingSize - bytesRead)
+                        if (result == -1) return
+                        bytesRead += result
+                    }
+
+                    // Constructs the final buffer which contains everything
+                    ByteBuffer.allocate(1 + 4 + remainingSize).apply {
+                        order(ByteOrder.LITTLE_ENDIAN)
+                        put(typeByte.toByte())
+                        putInt(count)
+                        put(readBuffer)
+                    }.array()
+                } else {
+                    val remainingSize = when (type) {
+                        GameMessageType.PLAYER_MOVE -> 12 // ID (4) + xPos (4) + yPos (4)
+                        GameMessageType.PLAYER_ATTACK -> 4 // ID (4)
+                        GameMessageType.MAP_DATA -> 220 // Width (20) * Height (11)
+                        else -> 0 // To ignore dynamic sized messages
+                    }
+
+                    val readBuffer = ByteArray(remainingSize) // The size of a message
+                    var bytesRead = 0
+
+                    // Continues listening till all 13 bytes are read
+                    while (bytesRead < remainingSize) {
+                        // Fills the readBuffer array from bytesRead till we have the total
+                        val result = inputStream.read(readBuffer, bytesRead, remainingSize - bytesRead)
+                        if (result == -1) return
+                        bytesRead += result
+                    }
+
+                    // Reconstructs and deserialises the message
+                    val assembledArray = ByteArray(remainingSize + 1)
+                    assembledArray[0] = typeByte.toByte()
+                    System.arraycopy(readBuffer, 0, assembledArray, 1, remainingSize)
+                    assembledArray
                 }
 
-                val readBuffer = ByteArray(remainingSize) // The size of a message
-                var bytesRead = 0
-
-                // Continues listening till all 13 bytes are read
-                while (bytesRead < remainingSize) {
-                    // Fills the readBuffer array from bytesRead till we have the total
-                    val result = inputStream.read(readBuffer, bytesRead, remainingSize - bytesRead)
-                    if (result == -1) return
-                    bytesRead += result
-                }
-
-                // Reconstructs and deserialises the message
-                val fullMsg = ByteArray(remainingSize + 1)
-                fullMsg[0] = typeByte.toByte()
-                System.arraycopy(readBuffer, 0, fullMsg, 1, remainingSize)
                 val msg = msgFactory.create(fullMsg) // Message full, send to factory to be deserialised
 
-                // If the message is from a different player, handles it
-                Gdx.app.postRunnable {
-                    if (msg is GameMessage.PlayerMoveMessage && msg.id != playerID) {
-                        handleRemoteMove(msg)
-                    } else if (msg is GameMessage.PlayerAttackMessage && msg.id != playerID) {
-                        handleRemoteAttack(msg)
+                // If the message isn't null handles messages from the server
+                if (msg != null) {
+                    Gdx.app.postRunnable {
+                        when (msg) {
+                            is GameMessage.PlayerMoveMessage -> if (msg.id != playerID) handleRemoteMove(msg)
+                            is GameMessage.PlayerAttackMessage -> if (msg.id != playerID) handleRemoteAttack(msg)
+                            is GameMessage.WorldStateMessage -> reconcileWorldState(msg)
+                            else -> {}
+                        }
                     }
                 }
             }
@@ -270,6 +313,36 @@ class GameScreen : KtxScreen {
         factory.createAOERing(pos.x, pos.y, attackComp.range)
 
         Gdx.app.log("COMBAT", "Remote player ${msg.id} performed an attack.")
+    }
+
+    // Keeps clients in sync with the server's logic
+    private fun reconcileWorldState(msg: GameMessage.WorldStateMessage) {
+        val playerEntities = engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class).get())
+
+        msg.positions.forEach { (id, serverPos) ->
+            val entity = playerEntities.find { PlayerComponent.mapper[it].id == id }
+
+            // Checks if the entity exists
+            if (entity != null) {
+                val transform = TransformComponent.mapper[entity]
+                val localPos = transform.position
+
+                // If distance is too far away, correct it
+                if (localPos.dst2(serverPos) > 0.25f) {
+                    Gdx.app.log("NETWORK", "Desync detected for player $id. Correcting...")
+                    localPos.set(serverPos)
+
+                    // If desynced player is the local player, clear current pathing target to avoid fighting
+                    if (id == playerID) {
+                        PathComponent.mapper[entity]?.nodes?.clear()
+                    }
+                }
+            } else {
+                // The server knows someone we don't create them at the coords
+                factory.createPlayer(id, serverPos.x, serverPos.y)
+                Gdx.app.log("NETWORK", "New player $id synced into world.")
+            }
+        }
     }
 
     // Handles rendering for the screen, as well as calling game updates
