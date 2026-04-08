@@ -6,30 +6,40 @@ import kotlin.math.abs
 
 // Implementation of A* pathfinding, done so as an Object as only one instance is required - Singleton
 object Pathfinding {
-    // Pre-allocates a 2D grid of Nodes, for efficiency
-    private val grid = Array(Constants.MAP_WIDTH) { x ->
-        Array(Constants.MAP_HEIGHT) { y -> Node(x, y) }
+    // Pre-allocates a 1D grid of Nodes, for efficiency
+    private val grid = Array(Constants.MAP_WIDTH * Constants.MAP_HEIGHT) { i ->
+        Node(i % Constants.MAP_WIDTH, i / Constants.MAP_WIDTH)
     }
+
+    // Static directional arrays for node neighbours
+    private val dx = intArrayOf(1, -1, 0, 0)
+    private val dy = intArrayOf(0, 0, 1, -1)
 
     // Finds the shortest path from start position to goal,
     // has knowledge of which 'Node's are blocked so they can be ignored for final path
     fun findPath(startX: Int, startY: Int, goalX: Int, goalY: Int,
                  isBlocked: (Int, Int) -> Boolean): List<Vector2> {
+        // Checks whether the start or goal is out of bounds
+        if (startX !in 0 until Constants.MAP_WIDTH || startY !in 0 until Constants.MAP_HEIGHT ||
+            goalX !in 0 until Constants.MAP_WIDTH || goalY !in 0 until Constants.MAP_HEIGHT) {
+            return emptyList()
+        }
+
         // Resets the grid each time its called, ensuring a clean slate
-        for (x in 0 until Constants.MAP_WIDTH) {
-            for (y in 0 until Constants.MAP_HEIGHT) {
-                val n = grid[x][y]
-                n.g = 0
-                n.h = 0f
-                n.parent = null
-                n.isInOpenSet = false
-            }
+        for (i in grid.indices) {
+            val n = grid[i]
+            n.g = 0
+            n.h = 0f
+            n.parent = null
+            n.isInOpenSet = false
         }
 
         val openSet = BinaryHeap<Node>() // Nodes that need checking, instance of 'BinaryHeap', automatically sorted
-        val closedSet = mutableSetOf<Node>() // Nodes that have been checked
+        val closedSet = BooleanArray(Constants.MAP_WIDTH * Constants.MAP_HEIGHT) // Nodes that have been checked
 
-        val startNode = grid[startX][startY]
+        // Sets the start node
+        val startIndex = startY * Constants.MAP_WIDTH + startX
+        val startNode = grid[startIndex]
         startNode.g = 0 // Start node is 0, as its the only explored tile
         // Calculates the heuristic, estimation of distance, from start to finish
         startNode.h = calculateManhattan(startX, startY, goalX, goalY)
@@ -46,26 +56,23 @@ object Pathfinding {
 
             if (current.x == goalX && current.y == goalY) { return reconstructPath(current) } // Found path
 
-            closedSet.add(current) // Added to closed set, this node has been checked
+            closedSet[current.y * Constants.MAP_WIDTH + current.x] = true // Added to closed set, this node has been checked
 
-            // Creates a list of all neighbours to the current node, four in the cardinal directions
-            val neighbours = listOf(
-                Pair(current.x + 1, current.y),
-                Pair(current.x - 1, current.y),
-                Pair(current.x, current.y + 1),
-                Pair(current.x, current.y - 1)
-            )
+            // Loops through all neighbours
+            for (i in 0 until 4) {
+                // Assigns coords to node for neighbour
+                val nx = current.x + dx[i]
+                val ny = current.y + dy[i]
 
-            // Loops through all neighbours, assigns nx and ny to the pairs values
-            for ((nx, ny) in neighbours) {
                 // Skips neighbours that are out of bounds
                 if (nx !in 0 until Constants.MAP_WIDTH || ny !in 0 until Constants.MAP_HEIGHT) continue
 
-                val neighbour = grid[nx][ny] // Assigns the neighbour a cell in the 2D array
+                val nIdx = ny * Constants.MAP_WIDTH + nx // Translates the 2D grid to a 1D grid
 
                 // Checks whether the cell has already been checked, or is blocked by an obstacle/wall
-                if (isBlocked(nx, ny) || neighbour in closedSet) continue
+                if (closedSet[nIdx] || isBlocked(nx, ny)) continue
 
+                val neighbour = grid[nIdx] // Assigns node index to check neighbour
                 val tentativeG = current.g + 1 // Potential cost, from current tile to neighbour
 
                 // Checks whether the neighbour is not in the open set, i.e. its a new tile
