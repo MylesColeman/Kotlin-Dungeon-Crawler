@@ -450,6 +450,11 @@ class GameScreen : KtxScreen {
                     clear()
                     addAll(newPath)
                 }
+
+                // Forced ignore target, align with new path
+                if (newPath.isNotEmpty()) {
+                    MovementComponent.mapper[entity]?.target?.set(newPath.first())
+                }
             }
         }
     }
