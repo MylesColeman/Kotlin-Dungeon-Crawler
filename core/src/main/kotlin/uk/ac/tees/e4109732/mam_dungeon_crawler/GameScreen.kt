@@ -279,6 +279,17 @@ class GameScreen : KtxScreen {
 
             val startPos = TransformComponent.mapper[remoteEntity]!!.position
 
+            // If initial movement message, i.e. move to spawn point; just teleport
+            if (startPos.x < 0.5f && startPos.y < 0.5f) {
+                MovementComponent.mapper[remoteEntity]?.target?.set(msg.posX, msg.posY) // Sets the target to the new position
+
+                AnimationComponent.mapper[remoteEntity]?.currentState = "walk_down" // Force default idle state
+
+                PathComponent.mapper[remoteEntity]?.nodes?.clear() // Clear path
+                PhysicsComponent.mapper[remoteEntity]?.body?.setTransform(startPos, 0f) // Sync physics body
+                return@postRunnable
+            }
+
             // Launches a coroutine in the background, one optimised for CPU tasks to keep fps high,
             // done so to find a path for the remote player
             coroutineScope.launch(Dispatchers.Default) {
