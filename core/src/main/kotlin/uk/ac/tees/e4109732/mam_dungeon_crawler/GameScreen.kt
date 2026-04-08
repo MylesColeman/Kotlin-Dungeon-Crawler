@@ -281,12 +281,12 @@ class GameScreen : KtxScreen {
 
             // If initial movement message, i.e. move to spawn point; just teleport
             if (startPos.x < 0.5f && startPos.y < 0.5f) {
-                MovementComponent.mapper[remoteEntity]?.target?.set(msg.posX, msg.posY) // Sets the target to the new position
+                startPos.set(msg.posX, msg.posY)
 
+                MovementComponent.mapper[remoteEntity]?.target?.set(msg.posX, msg.posY) // Sets the target to the new position
                 AnimationComponent.mapper[remoteEntity]?.currentState = "walk_down" // Force default idle state
 
                 PathComponent.mapper[remoteEntity]?.nodes?.clear() // Clear path
-                PhysicsComponent.mapper[remoteEntity]?.body?.setTransform(startPos, 0f) // Sync physics body
                 return@postRunnable
             }
 
@@ -340,12 +340,27 @@ class GameScreen : KtxScreen {
 
                 Gdx.app.log("DEBUG_SYNC", "Drift: $localPos.dst2(serverPos) | Local: $localPos | Server: $serverPos")
 
-                // If distance is too far away, correct it
-                if (localPos.dst2(serverPos) > 0.25f) {
-                    Gdx.app.log("NETWORK", "Desync detected for player $id. Correcting...")
-                    localPos.set(serverPos)
+                // Local player prioritises local pathfinding, unless massively wrong
+                val isLocalPlayer = (id == playerID)
+                val allowedDrift = if (isLocalPlayer) 2.25f else 0.25f
 
-                    PhysicsComponent.mapper[entity]?.body?.setTransform(serverPos, 0f) // Update physics body too
+                // If distance is too far away, correct it
+                if (localPos.dst2(serverPos) > allowedDrift) {
+                    if (isLocalPlayer) {
+                        localPos.set(serverPos)
+                        MovementComponent.mapper[entity]?.target?.set(serverPos) // Update target to match server
+
+                        val pathComp = PathComponent.mapper[entity]
+                        if (pathComp != null && pathComp.nodes.isNotEmpty()) {
+                            val finalGoal = pathComp.nodes.last()
+                            pathComp.nodes.clear()
+                            requestPath(entity, finalGoal.x.toInt(), finalGoal.y.toInt()) // Requests a new path
+                        } else
+                            pathComp?.nodes?.clear()
+                    } else {
+                        localPos.lerp(serverPos, 0.3f)
+                        MovementComponent.mapper[entity]?.target?.set(serverPos) // Update target to match server
+                    }
                 }
             } else {
                 // The server knows someone we don't create them at the coords
@@ -419,9 +434,11 @@ class GameScreen : KtxScreen {
 
     // Requests a safe path from start pos to goal
     private fun requestPath(entity: Entity, goalX: Int, goalY: Int) {
-        val transComp = TransformComponent.mapper[entity] ?: return
-        val startX = transComp.position.x.toInt()
-        val startY = transComp.position.y.toInt()
+        val moveComp = MovementComponent.mapper[entity] ?: return
+
+        // Uses the target tile position to avoid floats
+        val startX = moveComp.target.x.toInt()
+        val startY = moveComp.target.y.toInt()
 
         val currentReserved = mutableSetOf<Int>() // Mutable set of reserved tiles, currently occupied
         // Find all players using their components
