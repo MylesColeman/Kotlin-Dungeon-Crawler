@@ -120,6 +120,11 @@ class GameScreen : KtxScreen {
                 val startX = mySpawn.x * Constants.UNIT_SCALE
                 val startY = mySpawn.y * Constants.UNIT_SCALE
 
+                // Create local player at spawn point
+                Gdx.app.postRunnable {
+                    factory.createPlayer(playerID, startX, startY)
+                }
+
                 // Sends the initial player start pos to the server
                 val initialPosMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
                 tcpSocket?.getOutputStream()?.write(initialPosMsg.serialise())
@@ -156,11 +161,6 @@ class GameScreen : KtxScreen {
         // Looks at the specific layer, specific objects of specific type which is used for player spawn points and puts them in a list
         val spawnLayer = map.layers["Spawn_Points"]?.objects ?: throw Exception("Spawn_Points layer not found")
         val spawnPoints = spawnLayer.filterIsInstance<PointMapObject>().filter { it.type == "SpawnPoint" }
-        // Creates a player at the spawn point, looping through the index of the list
-        spawnPoints.forEachIndexed { index, spawnPoint ->
-            factory.createPlayer(
-                index, spawnX = spawnPoint.x * Constants.UNIT_SCALE, spawnY = spawnPoint.y * Constants.UNIT_SCALE) // Scales by unit scale so map pixels become world units
-        }
 
         // Gets reference to the layers used as obstacles
         val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
@@ -327,15 +327,14 @@ class GameScreen : KtxScreen {
                 val transform = TransformComponent.mapper[entity]
                 val localPos = transform.position
 
+                Gdx.app.log("DEBUG_SYNC", "Drift: $localPos.dst2(serverPos) | Local: $localPos | Server: $serverPos")
+
                 // If distance is too far away, correct it
                 if (localPos.dst2(serverPos) > 0.25f) {
                     Gdx.app.log("NETWORK", "Desync detected for player $id. Correcting...")
                     localPos.set(serverPos)
 
-                    // If desynced player is the local player, clear current pathing target to avoid fighting
-                    if (id == playerID) {
-                        PathComponent.mapper[entity]?.nodes?.clear()
-                    }
+                    PhysicsComponent.mapper[entity]?.body?.setTransform(serverPos, 0f) // Update physics body too
                 }
             } else {
                 // The server knows someone we don't create them at the coords
@@ -390,8 +389,12 @@ class GameScreen : KtxScreen {
                             try {
                                 // Adds 0.5f to 'x' and 'y' so it's the centre of a tile
                                 val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
-                                // Sends the serialised message to the server
-                                socket.getOutputStream().write(moveMsg.serialise())
+
+                                // Lock the stream so rapid double-taps queue safely
+                                synchronized(socket.getOutputStream()) {
+                                    socket.getOutputStream().write(moveMsg.serialise()) // Sends the serialised message to the server
+                                    socket.getOutputStream().flush()
+                                }
                             } catch (e: Exception) {
                                 Gdx.app.error("NETWORK", "Send Error: ${e.message}")
                             }
@@ -421,6 +424,7 @@ class GameScreen : KtxScreen {
 
         // Launches a background coroutine, one optimised for CPU tasks to keep fps high, to run the pathfinding algorithm
         coroutineScope.launch(Dispatchers.Default) {
+            Gdx.app.log("DEBUG_SYNC", "CLIENT A* START: ($startX, $startY) to ($goalX, $goalY)")
             // Generates a new path, ensuring its within the grid and avoids obstacles
             val newPath = Pathfinding.findPath(startX, startY, goalX, goalY) { x, y ->
                 if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true // Checks whether within grid

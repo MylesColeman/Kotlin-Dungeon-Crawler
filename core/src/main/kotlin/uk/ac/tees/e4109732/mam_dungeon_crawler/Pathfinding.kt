@@ -54,7 +54,7 @@ object Pathfinding {
                 Pair(current.x - 1, current.y),
                 Pair(current.x, current.y + 1),
                 Pair(current.x, current.y - 1)
-            ).sortedBy { calculateManhattan(it.first, it.second, goalX, goalY) } // Sorted by shortest ManhattanDistance, potential optimisation for when sorted in 'BinaryHeap'
+            )
 
             // Loops through all neighbours, assigns nx and ny to the pairs values
             for ((nx, ny) in neighbours) {
@@ -98,8 +98,9 @@ object Pathfinding {
     private fun calculateManhattan(x1: Int, y1: Int, x2: Int, y2: Int): Float {
         // Looks at the absolute horizontal difference (ignoring whether left or right),
         // and the absolute vertical difference (ignoring whether up or down) then adds them together.
-        // It then multiplies by an arbitrary value, this helps break ties
-        return (abs(x1 - x2) + abs(y1 - y2)) * 1.001f
+        val dx = abs(x1 - x2).toFloat()
+        val dy = abs(y1 - y2).toFloat()
+        return dx + dy + (dx * 0.001f) // Multiplies by an arbitrary value, this helps break ties by skewing towards y-axis
     }
 
     // Reconstructs the path from goal back to the starting position
