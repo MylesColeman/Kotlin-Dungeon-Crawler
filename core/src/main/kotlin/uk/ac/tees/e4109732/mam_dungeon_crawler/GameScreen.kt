@@ -64,6 +64,7 @@ class GameScreen : KtxScreen {
     // Player variables
     private var playerID: Int = -1 // Defaults to -1, i.e. not set
     private var pathValidationTimer = 0f // Timer to check whether path is still valid every so often
+    private var lastServerTick: Int = 0 // Last tick received from the server for lag compensation
 
     // Sets up the initial state of the game screen
     // The view, texture atlas, entity factory and it's systems, the grid logic (obstacles etc),
@@ -138,7 +139,7 @@ class GameScreen : KtxScreen {
 
                 // Adds the system once the ID is received, ensuring the correct player's attack is handled
                 Gdx.app.postRunnable {
-                    engine.addSystem(AttackSystem(playerID, factory) { msg ->
+                    engine.addSystem(AttackSystem(playerID, factory, { lastServerTick }) { msg ->
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 tcpSocket?.getOutputStream()?.write(msg.serialise())
@@ -192,6 +193,17 @@ class GameScreen : KtxScreen {
 
                 // Checks if the message is dynamic or fixed
                 val fullMsg = if (type == GameMessageType.WORLD_STATE) {
+                    // Reads the tick
+                    val tickBuffer = ByteArray(4)
+                    var tickRead = 0
+                    while (tickRead < 4) {
+                        val result = inputStream.read(tickBuffer, tickRead, 4 - tickRead)
+                        if (result == -1) return
+                        tickRead += result
+                    }
+                    val currentTick = ByteBuffer.wrap(tickBuffer).order(ByteOrder.LITTLE_ENDIAN).int
+                    lastServerTick = currentTick
+
                     val countBuffer = ByteArray(4) // Holds the count from the message, the number of positions
                     var countRead = 0
 
@@ -218,16 +230,17 @@ class GameScreen : KtxScreen {
                     }
 
                     // Constructs the final buffer which contains everything
-                    ByteBuffer.allocate(1 + 4 + remainingSize).apply {
+                    ByteBuffer.allocate(1 + 8 + remainingSize).apply {
                         order(ByteOrder.LITTLE_ENDIAN)
                         put(typeByte.toByte())
+                        putInt(currentTick)
                         putInt(count)
                         put(readBuffer)
                     }.array()
                 } else {
                     val remainingSize = when (type) {
                         GameMessageType.PLAYER_MOVE -> 12 // ID (4) + xPos (4) + yPos (4)
-                        GameMessageType.PLAYER_ATTACK -> 4 // ID (4)
+                        GameMessageType.PLAYER_ATTACK -> 8 // ID (4) + tick (4)
                         GameMessageType.MAP_DATA -> 220 // Width (20) * Height (11)
                         else -> 0 // To ignore dynamic sized messages
                     }

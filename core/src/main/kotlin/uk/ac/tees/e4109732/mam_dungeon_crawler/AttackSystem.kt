@@ -8,7 +8,7 @@ import ktx.ashley.allOf
 import kotlin.math.sqrt
 
 // Handles player attacks
-class AttackSystem(private val localPlayerID: Int, private val factory: EntityFactory,
+class AttackSystem(private val localPlayerID: Int, private val factory: EntityFactory, private val getTick: () -> Int,
                    private val onAttackRequest: (GameMessage.PlayerAttackMessage) -> Unit)
     : IteratingSystem(allOf(PlayerComponent::class, AOEAttackComponent::class).get()){
     private val gravity = FloatArray(3) // Gravity is always acting on the accelerometer, this is used to ignore it
@@ -63,6 +63,6 @@ class AttackSystem(private val localPlayerID: Int, private val factory: EntityFa
 
         app.log("COMBAT", "Shake detected! Sending attack to server.")
 
-        onAttackRequest(GameMessage.PlayerAttackMessage(localPlayerID)) // Sends the attack request to the server
+        onAttackRequest(GameMessage.PlayerAttackMessage(localPlayerID, getTick())) // Sends the attack request to the server
     }
 }

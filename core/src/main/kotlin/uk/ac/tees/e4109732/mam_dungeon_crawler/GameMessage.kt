@@ -53,17 +53,18 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
     }
 
     // Player attack - sends position
-    data class PlayerAttackMessage(val id: Int): GameMessage(GameMessageType.PLAYER_ATTACK) {
-        // Capacity 5 as, Byte(1) + Int(4)
-        override fun serialise(): ByteArray = ByteBuffer.allocate(5).apply {
+    data class PlayerAttackMessage(val id: Int, val tick: Int): GameMessage(GameMessageType.PLAYER_ATTACK) {
+        // Capacity 9 as, Byte(1) + Int(4) + Int(4)
+        override fun serialise(): ByteArray = ByteBuffer.allocate(9).apply {
             order(ByteOrder.LITTLE_ENDIAN)
             put(type.id)
             putInt(id)
+            putInt(tick)
         }.array()
 
         companion object {
             fun deserialise(bb: ByteBuffer): PlayerAttackMessage {
-                return PlayerAttackMessage(bb.int)
+                return PlayerAttackMessage(bb.int, bb.int)
             }
         }
     }
@@ -99,13 +100,14 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
     }
 
     // World State - for receiving all player/entity positions
-    data class WorldStateMessage(val positions: Map<Int, Vector2>) : GameMessage(GameMessageType.WORLD_STATE) {
+    data class WorldStateMessage(val tick: Int, val positions: Map<Int, Vector2>) : GameMessage(GameMessageType.WORLD_STATE) {
         override fun serialise(): ByteArray {
-            // Byte(1) + Int(4) + (count * Int(4) + Float(4) + Float(4))
-            val capacity = 1 + 4 + (positions.size * 12)
+            // Byte(1) + 2 Ints(8) + (count * Int(4) + Float(4) + Float(4))
+            val capacity = 1 + 8 + (positions.size * 12)
             return ByteBuffer.allocate(capacity).apply {
                 order(ByteOrder.LITTLE_ENDIAN)
                 put(type.id)
+                putInt(tick)
                 putInt(positions.size)
                 positions.forEach { (id, pos) ->
                     putInt(id)
@@ -117,6 +119,7 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
 
         companion object {
             fun deserialise(bb: ByteBuffer): WorldStateMessage {
+                val tick = bb.int
                 val count = bb.int
                 val positions = mutableMapOf<Int, Vector2>()
                 repeat(count) {
@@ -125,7 +128,7 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
                     val y = bb.float
                     positions[id] = Vector2(x, y)
                 }
-                return WorldStateMessage(positions)
+                return WorldStateMessage(tick, positions)
             }
         }
     }
