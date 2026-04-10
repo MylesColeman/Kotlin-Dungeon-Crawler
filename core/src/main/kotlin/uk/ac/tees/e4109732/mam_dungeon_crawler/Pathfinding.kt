@@ -104,7 +104,7 @@ object Pathfinding {
     // Calculates the Manhattan distance, optimistic distance from a Node to the goal ignoring obstacles
     private fun calculateManhattan(x1: Int, y1: Int, x2: Int, y2: Int): Float {
         // Looks at the absolute horizontal difference (ignoring whether left or right),
-        // and the absolute vertical difference (ignoring whether up or down) then adds them together.
+        // and the absolute vertical difference (ignoring whether up or down) then adds them together
         val dx = abs(x1 - x2).toFloat()
         val dy = abs(y1 - y2).toFloat()
         return dx + dy + (dx * 0.001f) // Multiplies by an arbitrary value, this helps break ties by skewing towards y-axis
