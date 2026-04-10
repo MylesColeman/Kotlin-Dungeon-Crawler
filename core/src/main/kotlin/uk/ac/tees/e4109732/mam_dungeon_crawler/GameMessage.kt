@@ -11,7 +11,7 @@ interface Serialisable {
 }
 
 // Holds all game message types and assigns them an ID
-// This ID is used by the server, allowing it to recognise what message has been received nad how to deserialise it
+// This ID is used by the server, allowing it to recognise what message has been received and how to deserialise it
 enum class GameMessageType(val id: Byte) {
     PLAYER_MOVE(1),
     PLAYER_ATTACK(2),
