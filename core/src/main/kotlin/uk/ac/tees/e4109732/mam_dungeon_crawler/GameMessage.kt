@@ -52,7 +52,7 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
         }
     }
 
-    // Player attack - sends position
+    // Player attack - sends tick of attack
     data class PlayerAttackMessage(val id: Int, val tick: Int): GameMessage(GameMessageType.PLAYER_ATTACK) {
         // Capacity 9 as, Byte(1) + Int(4) + Int(4)
         override fun serialise(): ByteArray = ByteBuffer.allocate(9).apply {
