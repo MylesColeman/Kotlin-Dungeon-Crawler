@@ -45,6 +45,7 @@ class GameScreen : KtxScreen {
 
     // Rendering pipeline
     private lateinit var camera: OrthographicCamera // Converts world units to screen coordinates, orthogonal like original Zelda
+    private lateinit var hudCamera: OrthographicCamera // Stationary camera for the HUD
     private lateinit var viewport: Viewport
     private val batch = SpriteBatch()
     // Memory efficient collection of texture regions, uses one large image opposed to multiple small ones
@@ -79,8 +80,11 @@ class GameScreen : KtxScreen {
         // Centres the camera on the viewport, and ensures it uses the screen's size not the world's
         viewport.update(Gdx.graphics.width, Gdx.graphics.height, true)
 
+        // Sets up the HUD camera to only cover the screen, with a orthographic view
+        hudCamera = OrthographicCamera()
+        hudCamera.setToOrtho(false, Constants.MAP_WIDTH.toFloat(), Constants.MAP_HEIGHT.toFloat())
 
-        atlas = TextureAtlas("DungeonCrawlerEntities.atlas".toInternalFile()) // Atlas holding all textures, more efficient than individual images
+        atlas = TextureAtlas("DungeonCrawler.atlas".toInternalFile()) // Atlas holding all textures, more efficient than individual images
         factory = EntityFactory(engine, atlas, world) // Creates an instance of the entity factory to create entities for this screen
         // Adds the used systems to the engine
         engine.addSystem(MovementSystem())
@@ -115,6 +119,11 @@ class GameScreen : KtxScreen {
                 // Takes the 4 collected bytes (ensuring they're read the same way the server wrote them (little endian)) and combines them into an int
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
                 Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
+
+                // Adds the UI system once the player has an assigned ID
+                Gdx.app.postRunnable {
+                    engine.addSystem(UISystem(batch, hudCamera, atlas, playerID))
+                }
 
                 // Sets up the initial position of the player for the server
                 val mySpawn = spawnPoints.getOrElse(playerID) { spawnPoints.first() }

@@ -129,3 +129,16 @@ class EffectComponent : Component, Pool.Poolable {
     }
     companion object { val mapper = mapperFor<EffectComponent>() }
 }
+
+// Health component, contains current and max hearts
+class HealthComponent : Component, Pool.Poolable {
+    var currentHearts = 3
+    var maxHearts = 3
+
+    override fun reset() {
+        currentHearts = 3
+        maxHearts = 3
+    }
+
+    companion object { val mapper = mapperFor<HealthComponent>() }
+}

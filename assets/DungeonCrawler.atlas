@@ -1,33 +1,34 @@
-DungeonCrawlerEntities.png
+DungeonCrawler.png
 	size: 128, 128
 	repeat: none
-	pma: true
 aoeAttack_ring
 	bounds: 1, 31, 64, 64
+ui_heart
+	bounds: 67, 87, 8, 8
 walk_down
 	index: 2
 	bounds: 1, 21, 8, 8
 walk_down
 	index: 1
-	bounds: 67, 77, 8, 8
+	bounds: 77, 87, 8, 8
 walk_down
 	index: 0
-	bounds: 11, 11, 8, 8
+	bounds: 21, 21, 8, 8
 walk_horizontal
-	index: 0
-	bounds: 67, 87, 8, 8
-walk_horizontal
-	index: 2
-	bounds: 11, 21, 8, 8
-walk_horizontal
-	index: 1
-	bounds: 1, 1, 8, 8
-walk_up
 	index: 0
 	bounds: 1, 11, 8, 8
+walk_horizontal
+	index: 2
+	bounds: 67, 77, 8, 8
+walk_horizontal
+	index: 1
+	bounds: 11, 11, 8, 8
+walk_up
+	index: 0
+	bounds: 11, 21, 8, 8
 walk_up
 	index: 2
-	bounds: 77, 87, 8, 8
+	bounds: 1, 1, 8, 8
 walk_up
 	index: 1
-	bounds: 21, 21, 8, 8
+	bounds: 67, 67, 8, 8

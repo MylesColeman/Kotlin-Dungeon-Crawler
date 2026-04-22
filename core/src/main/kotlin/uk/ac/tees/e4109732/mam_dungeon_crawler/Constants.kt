@@ -7,4 +7,6 @@ object Constants {
     // Map dimensions, in tiles
     const val MAP_WIDTH = 20
     const val MAP_HEIGHT = 11
+
+    const val UI_OPACITY = 0.7f
 }

@@ -44,6 +44,7 @@ class EntityFactory(private val engine: PooledEngine, private val atlas: Texture
             target.set(spawnX, spawnY) // Default target, redundant
         }
         with<PathComponent>()
+        with<HealthComponent>()
         with<AOEAttackComponent>()
         with<TextureComponent>()
         with<AnimationComponent> {
