@@ -13,6 +13,9 @@ class MovementSystem : IteratingSystem(
 
     // Updates the entities transform, smoothly moving them towards a pathfinding node
     override fun processEntity(entity: Entity, deltaTime: Float) {
+        val health = HealthComponent.mapper[entity]
+        if (health != null && health.currentHearts <= 0) return // Player is dead, don't update
+
         val transform = TransformComponent.mapper[entity] ?: return
         val movement = MovementComponent.mapper[entity] ?: return
         val path = PathComponent.mapper[entity] ?: return

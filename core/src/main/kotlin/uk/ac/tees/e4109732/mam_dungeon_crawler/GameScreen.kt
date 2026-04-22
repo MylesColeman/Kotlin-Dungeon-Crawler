@@ -370,9 +370,12 @@ class GameScreen : KtxScreen {
                 if (isLocalPlayer) {
                     playerEntities.forEach { other ->
                         if (other != entity) {
-                            val otherPos = TransformComponent.mapper[other].position
-                            if (localPos.dst2(otherPos) < 0.8f) {
-                                isCollidingLocally = true
+                            val otherHealth = HealthComponent.mapper[other]
+                            if (otherHealth == null || otherHealth.currentHearts > 0) {
+                                val otherPos = TransformComponent.mapper[other].position
+                                if (localPos.dst2(otherPos) < 0.8f) {
+                                    isCollidingLocally = true
+                                }
                             }
                         }
                     }
@@ -439,6 +442,13 @@ class GameScreen : KtxScreen {
 
     // Handles player update and calls validate paths, to ensure paths remain valid
     private fun update(deltaTime: Float) {
+        val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find {
+            PlayerComponent.mapper[it]?.id == playerID
+        } ?: return
+
+        val healthComp = HealthComponent.mapper[playerEntity]
+        if (healthComp != null && healthComp.currentHearts <= 0) return // Player is dead, don't update
+
         // Checks whether the screen was JUST touched, this prevents holding/redundant calls
         if (input.justTouched()) {
             // Translates the touch coordinates to where it relates to in the game world
@@ -498,8 +508,12 @@ class GameScreen : KtxScreen {
         engine.getEntitiesFor(allOf(PlayerComponent::class, TransformComponent::class).get()).forEach { other ->
             // Ignore this client's player
             if (other != entity) {
-                val pos = TransformComponent.mapper[other]!!.position
-                currentReserved.add(pos.y.toInt() * Constants.MAP_WIDTH + pos.x.toInt()) // Adds other client's players to the reserved set
+                val health = HealthComponent.mapper[other]
+                // Don't pathfind around dead players
+                if (health == null || health.currentHearts > 0) {
+                    val pos = TransformComponent.mapper[other]!!.position
+                    currentReserved.add(pos.y.toInt() * Constants.MAP_WIDTH + pos.x.toInt()) // Adds other client's players to the reserved set
+                }
             }
         }
 

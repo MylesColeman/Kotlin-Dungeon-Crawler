@@ -24,6 +24,9 @@ class RenderSystem(private val batch: SpriteBatch, private val camera: Orthograp
 
         // Draws all the sprites using the transform (position) and texture component
         override fun processEntity(entity: Entity, deltaTime: Float) {
+            val healthComponent = HealthComponent.mapper[entity]
+            if (healthComponent != null && healthComponent.currentHearts <= 0) return // Player is dead, don't draw them
+
             val transform = TransformComponent.mapper[entity] ?: return
             val texture = TextureComponent.mapper[entity] ?: return
             val region = texture.region ?: return
@@ -53,7 +56,7 @@ class RenderSystem(private val batch: SpriteBatch, private val camera: Orthograp
                     val player = PlayerComponent.mapper[entity]
                     // Gives the second player a green tint
                     if (player != null && player.id != localPlayerId && localPlayerId != -1)
-                        batch.setColor(1f, 0.7f, 1f, 1f) // Green
+                        batch.setColor(1f, 0.7f, 1f, 1f) // Red
 
                     batch.draw(region, transform.position.x - (width / 2f), transform.position.y - 0.5f, width, height) // Divides transform by 2, ensuring they're drawn in the centre of tiles
 

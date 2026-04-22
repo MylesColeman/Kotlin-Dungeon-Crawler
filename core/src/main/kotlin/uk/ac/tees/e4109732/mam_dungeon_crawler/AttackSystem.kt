@@ -20,6 +20,9 @@ class AttackSystem(private val localPlayerID: Int, private val factory: EntityFa
         val playerComp = PlayerComponent.mapper[entity] ?: return
         val attackComp = AOEAttackComponent.mapper[entity] ?: return
 
+        val health = HealthComponent.mapper[entity]
+        if (health != null && health.currentHearts <= 0) return // Player is dead, don't update
+
         if (playerComp.id != localPlayerID) return // Check to ensure this is the local player that initiated the attack
 
         // Timer so the player can only attack once every set time
