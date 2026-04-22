@@ -16,8 +16,8 @@ class UISystem(private val batch: SpriteBatch, private val hudcamera: Orthograph
         private val heartSize = 1.0f
         private val padding = 0.2f
 
-        private val colourFull = Color(1.0f, 0.1f, 0.1f, Constants.UI_OPACITY)
-        private val colourEmpty = Color(0.3f, 0.3f, 0.3f, Constants.UI_OPACITY)
+        private val colourFull = Color(1.0f, 0.1f, 0.1f, Constants.UI_OPACITY) // Red
+        private val colourEmpty = Color(0.3f, 0.3f, 0.3f, Constants.UI_OPACITY) // Grey
 
         override fun update(deltaTime: Float) {
             batch.projectionMatrix = hudcamera.combined

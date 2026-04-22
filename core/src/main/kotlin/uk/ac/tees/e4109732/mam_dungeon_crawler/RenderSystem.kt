@@ -10,7 +10,7 @@ import ktx.graphics.use
 
 // Used to render sprites, uses a sorted iterating system to sort sprites on the z-axis to prevent z fighting
 // Only renders entities with both transform and texture components, lower z's are rendered first
-class RenderSystem(private val batch: SpriteBatch, private val camera: OrthographicCamera)
+class RenderSystem(private val batch: SpriteBatch, private val camera: OrthographicCamera, var localPlayerId: Int = -1)
     : SortedIteratingSystem(allOf(TransformComponent::class, TextureComponent::class).get(),
     compareBy { entity -> entity[TransformComponent.mapper]?.z }) {
 
@@ -41,14 +41,7 @@ class RenderSystem(private val batch: SpriteBatch, private val camera: Orthograp
                 val width = region.regionWidth * Constants.UNIT_SCALE * currentScale
                 val height = region.regionHeight * Constants.UNIT_SCALE * currentScale
 
-                // Divides transform by 2, ensuring they're drawn in the centre of tiles
-                batch.draw(
-                    region,
-                    transform.position.x - (width / 2f),
-                    transform.position.y - (height / 2f),
-                    width,
-                    height
-                )
+                batch.draw(region, transform.position.x - (width / 2f), transform.position.y - (height / 2f), width, height) // Divides transform by 2, ensuring they're drawn in the centre of tiles
 
                 batch.setColor(1f, 1f, 1f, 1f) // Reset colour for other entities
             } else {
@@ -57,15 +50,14 @@ class RenderSystem(private val batch: SpriteBatch, private val camera: Orthograp
                     val width = region.regionWidth * Constants.UNIT_SCALE
                     val height = region.regionHeight * Constants.UNIT_SCALE
 
-                    // Divides transform by 2, ensuring they're drawn in the centre of tiles
-                    batch.draw(
-                        region,
-                        transform.position.x - (width / 2f),
-                        transform.position.y - 0.5f,
-                        width,
-                        height
-                    )
+                    val player = PlayerComponent.mapper[entity]
+                    // Gives the second player a green tint
+                    if (player != null && player.id != localPlayerId && localPlayerId != -1)
+                        batch.setColor(1f, 0.7f, 1f, 1f) // Green
 
+                    batch.draw(region, transform.position.x - (width / 2f), transform.position.y - 0.5f, width, height) // Divides transform by 2, ensuring they're drawn in the centre of tiles
+
+                    batch.setColor(1f, 1f, 1f, 1f) // Reset colour for other entities
                 }
             }
         }

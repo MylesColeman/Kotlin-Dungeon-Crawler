@@ -120,18 +120,15 @@ class GameScreen : KtxScreen {
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
                 Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
 
-                // Adds the UI system once the player has an assigned ID
-                Gdx.app.postRunnable {
-                    engine.addSystem(UISystem(batch, hudCamera, atlas, playerID))
-                }
-
                 // Sets up the initial position of the player for the server
                 val mySpawn = spawnPoints.getOrElse(playerID) { spawnPoints.first() }
                 val startX = mySpawn.x * Constants.UNIT_SCALE
                 val startY = mySpawn.y * Constants.UNIT_SCALE
 
-                // Create local player at spawn point
+                // Updates the render system with the local player's ID, adds the UI system once the player has an assigned ID, and creates the player
                 Gdx.app.postRunnable {
+                    engine.getSystem(RenderSystem::class.java).localPlayerId = playerID
+                    engine.addSystem(UISystem(batch, hudCamera, atlas, playerID))
                     factory.createPlayer(playerID, startX, startY)
                 }
 
