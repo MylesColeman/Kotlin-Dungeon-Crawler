@@ -355,7 +355,27 @@ class GameScreen : KtxScreen {
 
                 // Local player prioritises local pathfinding, unless massively wrong
                 val isLocalPlayer = (id == playerID)
-                val allowedDrift = if (isLocalPlayer) 2.25f else 0.25f
+                val pathComp = PathComponent.mapper[entity]
+                val isMoving = pathComp != null && pathComp.nodes.isNotEmpty()
+
+                var isCollidingLocally = false
+                if (isLocalPlayer) {
+                    playerEntities.forEach { other ->
+                        if (other != entity) {
+                            val otherPos = TransformComponent.mapper[other].position
+                            if (localPos.dst2(otherPos) < 0.8f) {
+                                isCollidingLocally = true
+                            }
+                        }
+                    }
+                }
+
+                val allowedDrift = when {
+                    !isMoving -> 0.001f
+                    isCollidingLocally -> 0.1f
+                    isLocalPlayer -> 2.25f
+                    else -> 0.25f
+                }
 
                 // If distance is too far away, correct it
                 if (localPos.dst2(serverPos) > allowedDrift) {
