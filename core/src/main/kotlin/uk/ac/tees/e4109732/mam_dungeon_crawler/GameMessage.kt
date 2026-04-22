@@ -16,7 +16,8 @@ enum class GameMessageType(val id: Byte) {
     PLAYER_MOVE(1),
     PLAYER_ATTACK(2),
     MAP_DATA(3),
-    WORLD_STATE(4);
+    WORLD_STATE(4),
+    ENTITY_DAMAGED(5);
 
     // Companion object to help recognise message type, looking at the assigned byte
     companion object {
@@ -132,6 +133,23 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
             }
         }
     }
+
+    // Entity Damaged - received when any entity takes damage
+    data class EntityDamagedMessage(val targetId: Int, val health: Int) : GameMessage(GameMessageType.ENTITY_DAMAGED) {
+        // Capacity 9: Byte(1) + Int(4) + Int(4)
+        override fun serialise(): ByteArray = ByteBuffer.allocate(9).apply {
+            order(ByteOrder.LITTLE_ENDIAN)
+            put(type.id)
+            putInt(targetId)
+            putInt(health)
+        }.array()
+
+        companion object {
+            fun deserialise(bb: ByteBuffer): EntityDamagedMessage {
+                return EntityDamagedMessage(bb.int, bb.int)
+            }
+        }
+    }
 }
 
 // Converts incoming messages from the server back into 'GameMessage's
@@ -150,6 +168,7 @@ class GameMessageFactory {
             GameMessageType.PLAYER_ATTACK -> GameMessage.PlayerAttackMessage.deserialise(bb)
             GameMessageType.MAP_DATA -> GameMessage.MapDataMessage.deserialise(bb)
             GameMessageType.WORLD_STATE -> GameMessage.WorldStateMessage.deserialise(bb)
+            GameMessageType.ENTITY_DAMAGED -> GameMessage.EntityDamagedMessage.deserialise(bb)
         }
     }
 }

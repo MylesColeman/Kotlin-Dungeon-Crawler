@@ -251,6 +251,7 @@ class GameScreen : KtxScreen {
                         GameMessageType.PLAYER_MOVE -> 12 // ID (4) + xPos (4) + yPos (4)
                         GameMessageType.PLAYER_ATTACK -> 8 // ID (4) + tick (4)
                         GameMessageType.MAP_DATA -> 220 // Width (20) * Height (11)
+                        GameMessageType.ENTITY_DAMAGED -> 8 // TargetID (4) + Health (4)
                         else -> 0 // To ignore dynamic sized messages
                     }
 
@@ -281,6 +282,7 @@ class GameScreen : KtxScreen {
                             is GameMessage.PlayerMoveMessage -> if (msg.id != playerID) handleRemoteMove(msg)
                             is GameMessage.PlayerAttackMessage -> if (msg.id != playerID) handleRemoteAttack(msg)
                             is GameMessage.WorldStateMessage -> reconcileWorldState(msg)
+                            is GameMessage.EntityDamagedMessage -> handleEntityDamaged(msg)
                             else -> {}
                         }
                     }
@@ -409,6 +411,18 @@ class GameScreen : KtxScreen {
                 factory.createPlayer(id, serverPos.x, serverPos.y)
                 Gdx.app.log("NETWORK", "New player $id synced into world.")
             }
+        }
+    }
+
+    //
+    private fun handleEntityDamaged(msg: GameMessage.EntityDamagedMessage) {
+        // Find the entity whose ID matches the target
+        val entity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find { PlayerComponent.mapper[it]?.id == msg.targetId } ?: return
+
+        val healthComponent = HealthComponent.mapper[entity]
+        if (healthComponent != null) {
+            healthComponent.currentHearts = msg.health // Updates the health with the authoritative value from the server
+            Gdx.app.log("COMBAT", "Entity ${msg.targetId} health sync: ${msg.health} hearts")
         }
     }
 
