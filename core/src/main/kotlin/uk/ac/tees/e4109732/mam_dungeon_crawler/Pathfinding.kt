@@ -107,7 +107,7 @@ object Pathfinding {
         // and the absolute vertical difference (ignoring whether up or down) then adds them together
         val dx = abs(x1 - x2).toFloat()
         val dy = abs(y1 - y2).toFloat()
-        return dx + dy + (dx * 0.001f) // Multiplies by an arbitrary value, this helps break ties by skewing towards y-axis
+        return dx + dy + (x1 * 0.0001f) + (y1 * 0.00001f) // Addition of miniscule values to help break ties
     }
 
     // Reconstructs the path from goal back to the starting position
