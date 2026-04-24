@@ -546,29 +546,35 @@ class GameScreen : KtxScreen {
     // Checks whether a path is still valid, not blocked by other player for example, every 0.2 seconds
     private fun validatePaths(deltaTime: Float) {
         pathValidationTimer += deltaTime // Increases timer for checking whether path is valid
-        if (pathValidationTimer < 0.2f) return // Checks whether 0.2 seconds have elapsed, only checks that often as to not waste computation
+        if (pathValidationTimer < 0.1f) return // Checks whether 0.1 seconds have elapsed, only checks that often as to not waste computation
         pathValidationTimer = 0f // Resets timer once 0.2 seconds have elapsed
 
-        // Gets all players with a path component
-        val playersWithPath = engine.getEntitiesFor(allOf(PlayerComponent::class, PathComponent::class).get())
+        val localPlayer = engine.getEntitiesFor(allOf(PlayerComponent::class, PathComponent::class).get()).find { PlayerComponent.mapper[it]?.id == playerID } ?: return
 
-        // Loops through all players with a path component
-        playersWithPath.forEach { entity ->
-            // Skip entities without active path
-            val path = PathComponent.mapper[entity]?.nodes ?: return@forEach
-            if (path.isEmpty()) return@forEach
+        val path = PathComponent.mapper[localPlayer]?.nodes ?: return
+        if (path.isEmpty()) return // No path to validate
 
-            val goal = path.last() // The last node, i.e. their goal
-            val goalX = goal.x.toInt()
-            val goalY = goal.y.toInt()
+        val isPathObstructed = path.any { node -> isTileOccupiedByOther(node.x.toInt(), node.y.toInt(), localPlayer) } // Is another player blocking a tile in the path
 
-            // Tile is blocked if obstacle or other player is in the way
-            val isBlocked = collisionGrid[goalY * Constants.MAP_WIDTH + goalX] || isTileOccupiedByOther(goalX, goalY, entity)
+        if (isPathObstructed) {
+            val goal = path.last() // Same destination, different path
 
-            // If path is blocked, request another path
-            if (isBlocked) {
-                Gdx.app.log("PATHFINDING", "Destination stale for player ${PlayerComponent.mapper[entity]?.id}. Re-pathing...")
-                requestPath(entity, goalX, goalY) // Requests another path
+            requestPath(localPlayer, goal.x.toInt(), goal.y.toInt())
+
+            val socket = tcpSocket
+            if (socket != null && socket.isConnected && !socket.isClosed) {
+                coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        val moveMsg = GameMessage.PlayerMoveMessage(playerID, goal.x, goal.y)
+                        // Locks for thread safety
+                        synchronized(socket.getOutputStream()) {
+                            socket.getOutputStream().write(moveMsg.serialise()) // Sends the serialised message to the server
+                            socket.outputStream.flush()
+                        }
+                    } catch (e: Exception) {
+                        Gdx.app.error("NETWORK", "Send Error: ${e.message}")
+                    }
+                }
             }
         }
     }
