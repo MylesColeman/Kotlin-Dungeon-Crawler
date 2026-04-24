@@ -27,6 +27,18 @@ enum class GameMessageType(val id: Byte) {
 
 // Defines game messages
 sealed class GameMessage(val type: GameMessageType) : Serialisable {
+    // Used to encrypt and decrypt messages for security
+    companion object {
+        private const val SECRET_KEY = "MAM_DungeonCrawler" // Key used for XOR encryption
+
+        // Applies a xor encryption key to messages
+        fun applyXor(buffer: ByteArray, startIndex: Int = 1) {
+            if (buffer.size <= 1) return // Don't encrypt single byte messages so the type ID can be processed
+            val keyBytes = SECRET_KEY.toByteArray()
+            for (i in startIndex until buffer.size)
+                buffer[i] = (buffer[i].toInt() xor keyBytes[(i - 1) % keyBytes.size].toInt()).toByte()
+        }
+    }
     // --------------------------------------------------------------------------------------------------
     // Message serialise function converts the byte order to little endian to match the C++ server
     // First byte is the message ID used to identify the message

@@ -164,12 +164,16 @@ class GameScreen : KtxScreen {
 
                 // Sends the initial player start pos to the server
                 val initialPosMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
-                tcpSocket?.getOutputStream()?.write(initialPosMsg.serialise())
+                val initialPosBytes = initialPosMsg.serialise()
+                GameMessage.applyXor(initialPosBytes) // Encrypts the message
+                tcpSocket?.getOutputStream()?.write(initialPosBytes)
                 Gdx.app.log("NETWORK", "Initial position synced: ($startX, $startY)")
 
                 val gridBytes = collisionGrid.map { if (it) 1.toByte() else 0.toByte() }.toByteArray()
                 val mapMsg = GameMessage.MapDataMessage(gridBytes)
-                tcpSocket?.getOutputStream()?.write(mapMsg.serialise())
+                val mapBytes = mapMsg.serialise()
+                GameMessage.applyXor(mapBytes) // Encrypts the message
+                tcpSocket?.getOutputStream()?.write(mapBytes)
 
                 Gdx.app.log("NETWORK", "Map Data Synced: ${gridBytes.size} tiles")
 
@@ -178,7 +182,10 @@ class GameScreen : KtxScreen {
                     engine.addSystem(AttackSystem(playerID, factory, { lastServerTick }) { msg ->
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                tcpSocket?.getOutputStream()?.write(msg.serialise())
+                                val attackBytes = msg.serialise()
+                                GameMessage.applyXor(attackBytes) // Encrypts the message
+
+                                tcpSocket?.getOutputStream()?.write(attackBytes)
                             } catch (e: Exception) {
                                 Gdx.app.error("NETWORK", "Failed to send attack: ${e.message}")
                             }
@@ -229,35 +236,31 @@ class GameScreen : KtxScreen {
 
                 // Checks if the message is dynamic or fixed
                 val fullMsg = if (type == GameMessageType.WORLD_STATE) {
-                    // Reads the tick
-                    val tickBuffer = ByteArray(4)
-                    var tickRead = 0
-                    while (tickRead < 4) {
-                        val result = inputStream.read(tickBuffer, tickRead, 4 - tickRead)
-                        if (result == -1) return
-                        tickRead += result
-                    }
-                    val currentTick = ByteBuffer.wrap(tickBuffer).order(ByteOrder.LITTLE_ENDIAN).int
-                    lastServerTick = currentTick
+                    // Buffer to read the header
+                    val headerBuffer = ByteArray(9) // Holds the header of the message
+                    headerBuffer[0] = typeByte.toByte()
+                    var headerRead = 0
 
-                    val countBuffer = ByteArray(4) // Holds the count from the message, the number of positions
-                    var countRead = 0
-
-                    // Continues listening till all 4 bytes are read
-                    while (countRead < 4) {
-                        // Fills the countBuffer array from countRead till we have the total
-                        val result = inputStream.read(countBuffer, countRead, 4 - countRead)
+                    // Continues reading till the header is read
+                    while (headerRead < 8) {
+                        // Fills the 'headerBuffer' array from countRead till we have the total
+                        val result = inputStream.read(headerBuffer, 1 + headerRead, 8 - headerRead)
                         if (result == -1) return
-                        countRead += result
+                        headerRead += result
                     }
+
+                    GameMessage.applyXor(headerBuffer) // Decrypts only the header, so count can be read
+
                     // Convert those 4 raw bytes into a readable Integer using Little Endian (C++ standard)
-                    val count = ByteBuffer.wrap(countBuffer).order(ByteOrder.LITTLE_ENDIAN).int
+                    val bbHeader = ByteBuffer.wrap(headerBuffer).order(ByteOrder.LITTLE_ENDIAN)
+                    bbHeader.get() // Skips the type byte
+                    lastServerTick = bbHeader.int
+                    val count = bbHeader.int
 
                     // Calculates how many more remaining bytes there are, each position is 12 bytes
                     val remainingSize = count * 12
                     val readBuffer = ByteArray(remainingSize)
                     var bytesRead = 0
-
                     // Loops again till all entities data is received
                     while (bytesRead < remainingSize) {
                         val result = inputStream.read(readBuffer, bytesRead, remainingSize - bytesRead)
@@ -266,11 +269,8 @@ class GameScreen : KtxScreen {
                     }
 
                     // Constructs the final buffer which contains everything
-                    ByteBuffer.allocate(1 + 8 + remainingSize).apply {
-                        order(ByteOrder.LITTLE_ENDIAN)
-                        put(typeByte.toByte())
-                        putInt(currentTick)
-                        putInt(count)
+                    ByteBuffer.allocate(9 + remainingSize).apply {
+                        put(headerBuffer)
                         put(readBuffer)
                     }.array()
                 } else {
@@ -299,6 +299,9 @@ class GameScreen : KtxScreen {
                     System.arraycopy(readBuffer, 0, assembledArray, 1, remainingSize)
                     assembledArray
                 }
+
+                val decryptStart = if (type == GameMessageType.WORLD_STATE) 9 else 1 // Determines when to start the encryption, as to skip the header
+                GameMessage.applyXor(fullMsg, decryptStart) // Decrypts the message
 
                 val msg = msgFactory.create(fullMsg) // Message full, send to factory to be deserialised
 
@@ -508,10 +511,13 @@ class GameScreen : KtxScreen {
                             try {
                                 // Adds 0.5f to 'x' and 'y' so it's the centre of a tile
                                 val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
+                                val moveBytes = moveMsg.serialise()
+
+                                GameMessage.applyXor(moveBytes) // Encrypts the message
 
                                 // Lock the stream so rapid double-taps queue safely
                                 synchronized(socket.getOutputStream()) {
-                                    socket.getOutputStream().write(moveMsg.serialise()) // Sends the serialised message to the server
+                                    socket.getOutputStream().write(moveBytes) // Sends the serialised message to the server
                                     socket.getOutputStream().flush()
                                 }
                             } catch (e: Exception) {
@@ -596,10 +602,14 @@ class GameScreen : KtxScreen {
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
                         val moveMsg = GameMessage.PlayerMoveMessage(playerID, goal.x, goal.y)
+                        val moveBytes = moveMsg.serialise()
+
+                        GameMessage.applyXor(moveBytes) // Encrypts the message
+
                         // Locks for thread safety
                         synchronized(socket.getOutputStream()) {
-                            socket.getOutputStream().write(moveMsg.serialise()) // Sends the serialised message to the server
-                            socket.outputStream.flush()
+                            socket.getOutputStream().write(moveBytes) // Sends the serialised message to the server
+                            socket.getOutputStream().flush()
                         }
                     } catch (e: Exception) {
                         Gdx.app.error("NETWORK", "Send Error: ${e.message}")
