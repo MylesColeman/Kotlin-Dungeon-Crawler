@@ -31,6 +31,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import ktx.ashley.allOf
 import java.io.InputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 import java.net.InetSocketAddress
 
 // Main game screen
@@ -67,6 +70,32 @@ class GameScreen : KtxScreen {
     private var pathValidationTimer = 0f // Timer to check whether path is still valid every so often
     private var lastServerTick: Int = 0 // Last tick received from the server for lag compensation
 
+    // Shouts across the LAN to find the server's IP
+    private fun discoverServerIP(): String {
+        var serverIp = Constants.IP_ADDRESS
+        try {
+            val udpSocket = DatagramSocket()
+            udpSocket.broadcast = true
+            udpSocket.soTimeout = 2000 // Gives up after two seconds
+
+            val sendData = "PING".toByteArray()
+            val sendPacket = DatagramPacket(sendData, sendData.size, InetAddress.getByName("255.255.255.255"), 4301) // Sends across the LAN to the server's port
+            udpSocket.send(sendPacket)
+
+            // Listens for the server's echo
+            val receiveData = ByteArray(1024)
+            val receivePacket = DatagramPacket(receiveData, receiveData.size)
+            udpSocket.receive(receivePacket)
+
+            serverIp = receivePacket.address.hostAddress // Update IP to be used by the client
+
+            udpSocket.close()
+        } catch (_: Exception) {
+            Gdx.app.error("NETWORK", "UDP Discovery failed, falling back to constant IP.")
+        }
+        return serverIp
+    }
+
     // Sets up the initial state of the game screen
     // The view, texture atlas, entity factory and it's systems, the grid logic (obstacles etc),
     // and networking done so via a background coroutine used to connect to the server
@@ -97,10 +126,11 @@ class GameScreen : KtxScreen {
         // Launches a coroutine in the background, this is used to establish a connection with the server - tcp so its persistent
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                Gdx.app.log("NETWORK", "Connecting to ${Constants.IP_ADDRESS}...")
+                val discoveredIP = discoverServerIP()
+                Gdx.app.log("NETWORK", "Connecting to $discoveredIP.")
                 // Creates a socket which attempts to connect to the server, it has a 5 second timeout before failing
                 val socket = Socket()
-                socket.connect(InetSocketAddress(Constants.IP_ADDRESS, 4300), 5000)
+                socket.connect(InetSocketAddress(discoveredIP, 4300), 5000)
                 tcpSocket = socket
 
                 val inputStream = socket.getInputStream() // Data flowing in from the server
