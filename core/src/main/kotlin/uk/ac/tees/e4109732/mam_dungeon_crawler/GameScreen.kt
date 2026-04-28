@@ -475,7 +475,7 @@ class GameScreen : KtxScreen {
         val cell = backgroundLayer.getCell(msg.x, msg.y)
 
         if (cell != null) {
-            val newTileId = if (msg.isPressed) 98 else 99 // 96 = off, 97 = on; LibGDX adds one
+            val newTileId = if (msg.isPressed) 98 else 97 // 96 = off, 97 = on; LibGDX adds one
             val newTile = map.tileSets.getTile(newTileId)
 
             if (newTile != null)
@@ -530,6 +530,32 @@ class GameScreen : KtxScreen {
             MovementComponent.mapper[playerEntity]?.target?.set(startX, startY)
             PathComponent.mapper[playerEntity]?.nodes?.clear()
             AnimationComponent.mapper[playerEntity]?.currentState = "walk_down" // Base starting anim
+
+            val socket = tcpSocket
+            // Syncs the collision grid and player spawn point
+            if (socket != null && socket.isConnected && !socket.isClosed) {
+                coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        val gridBytes = collisionGrid.map { if (it) 1.toByte() else 0.toByte() }.toByteArray() // Serialises the collision grid
+                        val mapMsg = GameMessage.MapDataMessage(gridBytes)
+                        val mapBytes = mapMsg.serialise()
+                        GameMessage.applyXor(mapBytes) // Encrypts the message
+
+                        val moveMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
+                        val moveBytes = moveMsg.serialise()
+                        GameMessage.applyXor(moveBytes) // Encrypts the message
+
+                        // Safely lock the stream and send both packets back-to-back
+                        synchronized(socket.getOutputStream()) {
+                            socket.getOutputStream().write(mapBytes)
+                            socket.getOutputStream().write(moveBytes)
+                            socket.getOutputStream().flush()
+                        }
+                    } catch (e: Exception) {
+                        Gdx.app.error("NETWORK", "Failed to sync room: ${e.message}")
+                    }
+                }
+            }
         }
     }
 
