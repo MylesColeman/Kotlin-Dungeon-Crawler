@@ -42,7 +42,7 @@ class GameScreen : KtxScreen {
     private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
 
     // Tiled map variables
-    private val map = TmxMapLoader().load("Maps/PathfindingDemoRoom.tmx")
+    private val map = TmxMapLoader().load("Maps/Lobby.tmx")
     val collisionGrid = BooleanArray(Constants.MAP_WIDTH * Constants.MAP_HEIGHT) // Used to determine obstacle locations
     private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE) // Orthogonal like original Zelda, 1 / 8 unit scale
 

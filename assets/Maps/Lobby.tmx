@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="20" height="11" tilewidth="8" tileheight="8" infinite="0" nextlayerid="9" nextobjectid="41">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="20" height="11" tilewidth="8" tileheight="8" infinite="0" nextlayerid="10" nextobjectid="43">
  <tileset firstgid="1" source="MicroDungeon.tsx"/>
  <layer id="2" name="Background" width="20" height="11">
   <data encoding="csv">
@@ -8,7 +8,7 @@
 0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
 0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
 0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
-0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
+0,18,97,18,18,18,18,18,18,18,18,18,18,18,18,18,97,18,18,0,
 0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
 0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
 0,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,0,
@@ -53,7 +53,7 @@
 17,0,30,0,0,0,30,0,0,30,0,0,30,0,0,0,30,0,0,20,
 17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,
 17,0,0,0,0,0,57,0,0,0,0,0,57,0,0,0,0,0,0,20,
-17,0,30,0,57,93,93,93,57,0,57,93,93,93,57,0,30,0,0,20,
+17,0,0,0,57,93,93,93,57,0,57,93,93,93,57,0,0,0,0,20,
 17,0,0,0,0,0,57,0,0,0,0,0,57,0,0,0,0,0,0,20,
 17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,
 17,0,30,0,0,0,30,0,0,30,0,0,30,0,0,0,30,0,0,20,
@@ -61,35 +61,19 @@
 33,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,36
 </data>
  </layer>
- <objectgroup id="4" name="Collisions">
-  <object id="12" x="128" y="0">
-   <polyline points="0,0 -128,0 -128,88 32,88 32,0 8,0 8,8 24,8 24,80 -120,80 -120,8 0,8 0,0"/>
-  </object>
-  <object id="24" name="NorthDoor" type="Door" x="128" y="0" width="8" height="8"/>
-  <object id="25" x="16" y="16" width="8" height="8"/>
-  <object id="26" x="48" y="16" width="8" height="8"/>
-  <object id="27" x="72" y="16" width="8" height="8"/>
-  <object id="28" x="96" y="16" width="8" height="8"/>
-  <object id="29" x="128" y="16" width="8" height="8"/>
-  <object id="30" x="128" y="40" width="8" height="8"/>
-  <object id="31" x="128" y="64" width="8" height="8"/>
-  <object id="32" x="96" y="64" width="8" height="8"/>
-  <object id="33" x="72" y="64" width="8" height="8"/>
-  <object id="34" x="48" y="64" width="8" height="8"/>
-  <object id="35" x="16" y="64" width="8" height="8"/>
-  <object id="36" x="16" y="40" width="8" height="8"/>
-  <object id="37" x="32" y="40">
-   <polyline points="0,0 16,0 16,-8 24,-8 24,0 40,0 40,8 24,8 24,16 16,16 16,8 0,8 0,0"/>
-  </object>
-  <object id="38" x="80" y="40">
-   <polyline points="0,0 16,0 16,-8 24,-8 24,0 40,0 40,8 24,8 24,16 16,16 16,8 0,8 0,0"/>
-  </object>
- </objectgroup>
  <objectgroup id="8" name="Spawn_Points">
   <object id="39" name="PlayerOne" type="SpawnPoint" x="28" y="76">
    <point/>
   </object>
   <object id="40" name="PlayerTwo" type="SpawnPoint" x="36" y="76">
+   <point/>
+  </object>
+ </objectgroup>
+ <objectgroup id="9" name="Lobby_Elements">
+  <object id="41" type="ReadyButton" x="20" y="44">
+   <point/>
+  </object>
+  <object id="42" type="ReadyButton" x="132" y="44">
    <point/>
   </object>
  </objectgroup>
