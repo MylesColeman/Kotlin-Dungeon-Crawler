@@ -42,7 +42,7 @@ class GameScreen : KtxScreen {
     private val image = Texture("logo.png".toInternalFile(), true).apply { setFilter(Linear, Linear) }
 
     // Tiled map variables
-    private val map = TmxMapLoader().load("Maps/Lobby.tmx")
+    private var map = TmxMapLoader().load("Maps/Lobby.tmx")
     val collisionGrid = BooleanArray(Constants.MAP_WIDTH * Constants.MAP_HEIGHT) // Used to determine obstacle locations
     private val renderer = OrthogonalTiledMapRenderer(map, Constants.UNIT_SCALE) // Orthogonal like original Zelda, 1 / 8 unit scale
 
@@ -69,6 +69,8 @@ class GameScreen : KtxScreen {
     private var playerID: Int = -1 // Defaults to -1, i.e. not set
     private var pathValidationTimer = 0f // Timer to check whether path is still valid every so often
     private var lastServerTick: Int = 0 // Last tick received from the server for lag compensation
+    private var isButton1Pressed = false
+    private var isButton2Pressed = false
 
     // Shouts across the LAN to find the server's IP
     private fun discoverServerIP(): String {
@@ -279,6 +281,8 @@ class GameScreen : KtxScreen {
                         GameMessageType.PLAYER_ATTACK -> 8 // ID (4) + tick (4)
                         GameMessageType.MAP_DATA -> 220 // Width (20) * Height (11)
                         GameMessageType.ENTITY_DAMAGED -> 8 // TargetID (4) + Health (4)
+                        GameMessageType.BUTTON_STATE -> 9 // X (4) + Y (4) + isPressed (1)
+                        GameMessageType.MAP_TRANSITION -> 4 // MapID (4)
                         else -> 0 // To ignore dynamic sized messages
                     }
 
@@ -313,6 +317,8 @@ class GameScreen : KtxScreen {
                             is GameMessage.PlayerAttackMessage -> if (msg.id != playerID) handleRemoteAttack(msg)
                             is GameMessage.WorldStateMessage -> reconcileWorldState(msg)
                             is GameMessage.EntityDamagedMessage -> handleEntityDamaged(msg)
+                            is GameMessage.ButtonStateMessage -> handleButtonState(msg)
+                            is GameMessage.MapTransitionMessage -> loadNewRoom(msg.mapId)
                             else -> {}
                         }
                     }
@@ -456,6 +462,74 @@ class GameScreen : KtxScreen {
         if (healthComponent != null) {
             healthComponent.currentHearts = msg.health // Updates the health with the authoritative value from the server
             Gdx.app.log("COMBAT", "Entity ${msg.targetId} health sync: ${msg.health} hearts")
+        }
+    }
+
+    // Handles the state of buttons
+    private fun handleButtonState(msg: GameMessage.ButtonStateMessage) {
+        // Checks whether the button is pressed
+        if (msg.x == 2 && msg.y == 5) isButton1Pressed = msg.isPressed
+        if (msg.x == 16 && msg.y == 5) isButton2Pressed = msg.isPressed
+
+        val backgroundLayer = map.layers["Background"] as? TiledMapTileLayer ?: return
+        val cell = backgroundLayer.getCell(msg.x, msg.y)
+
+        if (cell != null) {
+            val newTileId = if (msg.isPressed) 98 else 99 // 96 = off, 97 = on; LibGDX adds one
+            val newTile = map.tileSets.getTile(newTileId)
+
+            if (newTile != null)
+                cell.tile = newTile // Changes the tile to the new one
+        }
+
+        checkDoorCondition()
+    }
+
+    // Checks whether the door should be open, and then opens it if so
+    private fun checkDoorCondition() {
+        // If both buttons are pressed, open the door
+        if (isButton1Pressed && isButton2Pressed) {
+            // Swap visible door layer
+            map.layers["Doors_Closed"]?.isVisible = false
+            map.layers["Doors_Open"]?.isVisible = true
+
+            collisionGrid[10 * Constants.MAP_WIDTH + 16] = false // Removes the door from the collision grid, so it can be entered
+        }
+    }
+
+    //
+    private fun loadNewRoom(mapId: Int) {
+        map.disposeSafely()
+
+        val mapFile = "Maps/Room_$mapId.tmx" // Obtains the appropriate map ID from the message
+        map = TmxMapLoader().load(mapFile)
+
+        renderer.map = map
+
+        // Resets the collision grid
+        for (i in collisionGrid.indices)
+            collisionGrid[i] = false
+
+        val spawnPoints = setupCollisionGrid() // Sets up the new collision grid and spawn points
+
+        val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find {
+            PlayerComponent.mapper[it]?.id == playerID
+        }
+
+        // Sets the new spawn point and resets the player ready for the new room
+        if (playerEntity != null && spawnPoints.isNotEmpty()) {
+            // Sets the correct spawn point based on ID
+            val mySpawn = spawnPoints.getOrElse(playerID) {
+                spawnPoints.first()
+            }
+            val startX = mySpawn.x * Constants.UNIT_SCALE
+            val startY = mySpawn.y * Constants.UNIT_SCALE
+
+            // Resets relevant player attributes
+            TransformComponent.mapper[playerEntity]?.position?.set(startX, startY)
+            MovementComponent.mapper[playerEntity]?.target?.set(startX, startY)
+            PathComponent.mapper[playerEntity]?.nodes?.clear()
+            AnimationComponent.mapper[playerEntity]?.currentState = "walk_down" // Base starting anim
         }
     }
 

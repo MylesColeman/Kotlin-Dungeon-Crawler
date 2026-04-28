@@ -17,7 +17,9 @@ enum class GameMessageType(val id: Byte) {
     PLAYER_ATTACK(2),
     MAP_DATA(3),
     WORLD_STATE(4),
-    ENTITY_DAMAGED(5);
+    ENTITY_DAMAGED(5),
+    MAP_TRANSITION(6),
+    BUTTON_STATE(7);
 
     // Companion object to help recognise message type, looking at the assigned byte
     companion object {
@@ -162,6 +164,40 @@ sealed class GameMessage(val type: GameMessageType) : Serialisable {
             }
         }
     }
+
+    // Map Transition - received to load the correct map
+    data class MapTransitionMessage(val mapId: Int) : GameMessage(GameMessageType.MAP_TRANSITION) {
+        // Capacity 5: Byte(1) + Int(4)
+        override fun serialise(): ByteArray = ByteBuffer.allocate(5).apply {
+            order(ByteOrder.LITTLE_ENDIAN)
+            put(type.id)
+            putInt(mapId)
+        }.array()
+
+        companion object {
+            fun deserialise(bb: ByteBuffer): MapTransitionMessage {
+                return MapTransitionMessage(bb.int)
+            }
+        }
+    }
+
+    // Button State - received when a button is pressed
+    data class ButtonStateMessage(val x: Int, val y: Int, val isPressed: Boolean) : GameMessage(GameMessageType.BUTTON_STATE) {
+        // Capacity 10: Byte(1) + Int(4) + Int(4) + Byte(1)
+        override fun serialise(): ByteArray = ByteBuffer.allocate(10).apply {
+            order(ByteOrder.LITTLE_ENDIAN)
+            put(type.id)
+            putInt(x)
+            putInt(y)
+            put((if (isPressed) 1 else 0).toByte())
+        }.array()
+
+        companion object {
+            fun deserialise(bb: ByteBuffer): ButtonStateMessage {
+                return ButtonStateMessage(bb.int, bb.int, bb.get().toInt() != 0)
+            }
+        }
+    }
 }
 
 // Converts incoming messages from the server back into 'GameMessage's
@@ -181,6 +217,8 @@ class GameMessageFactory {
             GameMessageType.MAP_DATA -> GameMessage.MapDataMessage.deserialise(bb)
             GameMessageType.WORLD_STATE -> GameMessage.WorldStateMessage.deserialise(bb)
             GameMessageType.ENTITY_DAMAGED -> GameMessage.EntityDamagedMessage.deserialise(bb)
+            GameMessageType.MAP_TRANSITION -> GameMessage.MapTransitionMessage.deserialise(bb)
+            GameMessageType.BUTTON_STATE -> GameMessage.ButtonStateMessage.deserialise(bb)
         }
     }
 }
