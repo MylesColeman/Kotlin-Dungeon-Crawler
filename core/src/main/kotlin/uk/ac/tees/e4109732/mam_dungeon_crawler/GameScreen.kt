@@ -67,7 +67,7 @@ class GameScreen : KtxScreen {
     private val world = World(Vector2(0f, 0f), true) // Gravity set to 0 as 2D topdown game
 
     // Player variables
-    private var playerID: Int = -1 // Defaults to -1, i.e. not set
+    private var playerId: Int = -1 // Defaults to -1, i.e. not set
     private var pathValidationTimer = 0f // Timer to check whether path is still valid every so often
     private var lastServerTick: Int = 0 // Last tick received from the server for lag compensation
     private var isButton1Pressed = false
@@ -150,23 +150,23 @@ class GameScreen : KtxScreen {
                 }
 
                 // Takes the 4 collected bytes (ensuring they're read the same way the server wrote them (little endian)) and combines them into an int
-                playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
-                app.log("NETWORK", "Connected! Assigned ID: {$playerID}.")
+                playerId = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
+                app.log("NETWORK", "Connected! Assigned ID: {$playerId}.")
 
                 // Sets up the initial position of the player for the server
-                val mySpawn = spawnPoints.getOrElse(playerID) { spawnPoints.first() }
+                val mySpawn = spawnPoints.getOrElse(playerId) { spawnPoints.first() }
                 val startX = mySpawn.x * Constants.UNIT_SCALE
                 val startY = mySpawn.y * Constants.UNIT_SCALE
 
                 // Updates the render system with the local player's ID, adds the UI system once the player has an assigned ID, and creates the player
                 app.postRunnable {
-                    engine.getSystem(RenderSystem::class.java).localPlayerId = playerID
-                    engine.addSystem(UISystem(batch, hudCamera, atlas, playerID))
-                    factory.createPlayer(playerID, startX, startY)
+                    engine.getSystem(RenderSystem::class.java).localPlayerId = playerId
+                    engine.addSystem(UISystem(batch, hudCamera, atlas, playerId))
+                    factory.createPlayer(playerId, startX, startY)
                 }
 
                 // Sends the initial player start pos to the server
-                val initialPosMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
+                val initialPosMsg = GameMessage.PlayerMoveMessage(playerId, startX, startY)
                 val initialPosBytes = initialPosMsg.serialise()
                 GameMessage.applyXor(initialPosBytes) // Encrypts the message
                 tcpSocket?.getOutputStream()?.write(initialPosBytes)
@@ -179,7 +179,7 @@ class GameScreen : KtxScreen {
 
                 // Adds the system once the ID is received, ensuring the correct player's attack is handled
                 app.postRunnable {
-                    engine.addSystem(AttackSystem(playerID, factory, { lastServerTick }) { msg ->
+                    engine.addSystem(AttackSystem(playerId, factory, { lastServerTick }) { msg ->
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 val attackBytes = msg.serialise()
@@ -314,8 +314,8 @@ class GameScreen : KtxScreen {
                 if (msg != null) {
                     app.postRunnable {
                         when (msg) {
-                            is GameMessage.PlayerMoveMessage -> if (msg.id != playerID) handleRemoteMove(msg)
-                            is GameMessage.PlayerAttackMessage -> if (msg.id != playerID) handleRemoteAttack(msg)
+                            is GameMessage.PlayerMoveMessage -> if (msg.id != playerId) handleRemoteMove(msg)
+                            is GameMessage.PlayerAttackMessage -> if (msg.id != playerId) handleRemoteAttack(msg)
                             is GameMessage.WorldStateMessage -> reconcileWorldState(msg)
                             is GameMessage.EntityDamagedMessage -> handleEntityDamaged(msg)
                             is GameMessage.ButtonStateMessage -> handleButtonState(msg)
@@ -398,7 +398,7 @@ class GameScreen : KtxScreen {
                 val localPos = transform.position
 
                 // Local player prioritises local pathfinding, unless massively wrong
-                val isLocalPlayer = (id == playerID)
+                val isLocalPlayer = (id == playerId)
                 val pathComp = PathComponent.mapper[entity]
                 val isMoving = pathComp != null && pathComp.nodes.isNotEmpty()
 
@@ -524,9 +524,9 @@ class GameScreen : KtxScreen {
                 healthComp.currentHearts = 3
 
             // Sets the new spawn point and resets the players ready for the new room
-            if (id == playerID) {
+            if (id == playerId) {
                 // Sets the correct spawn point based on ID
-                val mySpawn = spawnPoints.getOrElse(playerID) {
+                val mySpawn = spawnPoints.getOrElse(playerId) {
                     spawnPoints.first()
                 }
                 val startX = mySpawn.x * Constants.UNIT_SCALE
@@ -548,7 +548,7 @@ class GameScreen : KtxScreen {
                             val mapBytes = mapMsg.serialise()
                             GameMessage.applyXor(mapBytes) // Encrypts the message
 
-                            val moveMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
+                            val moveMsg = GameMessage.PlayerMoveMessage(playerId, startX, startY)
                             val moveBytes = moveMsg.serialise()
                             GameMessage.applyXor(moveBytes) // Encrypts the message
 
@@ -588,7 +588,7 @@ class GameScreen : KtxScreen {
     // Handles player update and calls validate paths, to ensure paths remain valid
     private fun update(deltaTime: Float) {
         val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find {
-            PlayerComponent.mapper[it]?.id == playerID
+            PlayerComponent.mapper[it]?.id == playerId
         } ?: return
 
         val healthComp = HealthComponent.mapper[playerEntity]
@@ -609,7 +609,7 @@ class GameScreen : KtxScreen {
                 if (!isBlocked) {
                     // Locate the player entity using the component, looking for a matching ID
                     val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
-                        .find { PlayerComponent.mapper[it]?.id == playerID } ?: return
+                        .find { PlayerComponent.mapper[it]?.id == playerId } ?: return
 
                     requestPath(playerEntity, tileX, tileY) // Requests a path to where was clicked from the current position
 
@@ -622,7 +622,7 @@ class GameScreen : KtxScreen {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 // Adds 0.5f to 'x' and 'y' so it's the centre of a tile
-                                val moveMsg = GameMessage.PlayerMoveMessage(playerID, tileX + 0.5f, tileY + 0.5f)
+                                val moveMsg = GameMessage.PlayerMoveMessage(playerId, tileX + 0.5f, tileY + 0.5f)
                                 val moveBytes = moveMsg.serialise()
 
                                 GameMessage.applyXor(moveBytes) // Encrypts the message
@@ -696,7 +696,7 @@ class GameScreen : KtxScreen {
         if (pathValidationTimer < 0.1f) return // Checks whether 0.1 seconds have elapsed, only checks that often as to not waste computation
         pathValidationTimer = 0f // Resets timer once 0.2 seconds have elapsed
 
-        val localPlayer = engine.getEntitiesFor(allOf(PlayerComponent::class, PathComponent::class).get()).find { PlayerComponent.mapper[it]?.id == playerID } ?: return
+        val localPlayer = engine.getEntitiesFor(allOf(PlayerComponent::class, PathComponent::class).get()).find { PlayerComponent.mapper[it]?.id == playerId } ?: return
 
         val path = PathComponent.mapper[localPlayer]?.nodes ?: return
         if (path.isEmpty()) return // No path to validate
@@ -712,7 +712,7 @@ class GameScreen : KtxScreen {
             if (socket != null && socket.isConnected && !socket.isClosed) {
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
-                        val moveMsg = GameMessage.PlayerMoveMessage(playerID, goal.x, goal.y)
+                        val moveMsg = GameMessage.PlayerMoveMessage(playerId, goal.x, goal.y)
                         val moveBytes = moveMsg.serialise()
 
                         GameMessage.applyXor(moveBytes) // Encrypts the message
