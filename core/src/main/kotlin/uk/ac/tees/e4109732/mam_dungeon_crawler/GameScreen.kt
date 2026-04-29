@@ -497,7 +497,7 @@ class GameScreen : KtxScreen {
         }
     }
 
-    //
+    // Loads the new room from the server, updating the collision grid and player spawn points
     private fun loadNewRoom(mapId: Int) {
         map.disposeSafely()
 
