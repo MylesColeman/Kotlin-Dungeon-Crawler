@@ -194,7 +194,7 @@ class GameScreen : KtxScreen {
                         }
                     })
 
-                    engine.getSystem(AttackSystem::class.java)?.setProcessing(false) // Disabled by default, to disable combat during lobby
+                    engine.getSystem(AttackSystem::class.java)?.setProcessing(true) // Disabled by default, to disable combat during lobby
                 }
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
@@ -520,6 +520,11 @@ class GameScreen : KtxScreen {
 
         playerEntities.forEach { entity ->
             val id = PlayerComponent.mapper[entity]?.id ?: return@forEach
+
+            val healthComp = HealthComponent.mapper[entity]
+            // Resets dead player health on new room load
+            if (healthComp != null && healthComp.currentHearts <= 0)
+                healthComp.currentHearts = 3
 
             // Sets the new spawn point and resets the players ready for the new room
             if (id == playerID) {
