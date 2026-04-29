@@ -194,7 +194,7 @@ class GameScreen : KtxScreen {
                         }
                     })
 
-                    engine.getSystem(AttackSystem::class.java)?.setProcessing(true) // Disabled by default, to disable combat during lobby
+                    engine.getSystem(AttackSystem::class.java)?.setProcessing(false) // Disabled by default, to disable combat during lobby
                 }
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
