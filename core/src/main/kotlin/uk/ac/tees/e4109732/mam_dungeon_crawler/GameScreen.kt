@@ -74,7 +74,7 @@ class GameScreen : KtxScreen {
     private var isButton2Pressed = false
 
     // Shouts across the LAN to find the server's IP
-    private fun discoverServerIP(): String {
+    private fun discoverServerIp(): String {
         var serverIp = Constants.IP_ADDRESS
         try {
             val udpSocket = DatagramSocket()
@@ -129,7 +129,7 @@ class GameScreen : KtxScreen {
         // Launches a coroutine in the background, this is used to establish a connection with the server - tcp so its persistent
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                val discoveredIP = discoverServerIP()
+                val discoveredIP = discoverServerIp()
                 app.log("NETWORK", "Connecting to {$discoveredIP}.")
                 // Creates a socket which attempts to connect to the server, it has a 5 second timeout before failing
                 val socket = Socket()
