@@ -193,6 +193,8 @@ class GameScreen : KtxScreen {
                             }
                         }
                     })
+
+                    engine.getSystem(AttackSystem::class.java)?.setProcessing(false) // Disabled by default, to disable combat during lobby
                 }
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
@@ -453,7 +455,7 @@ class GameScreen : KtxScreen {
         }
     }
 
-    //
+    // Updates the client's health with that received from the server
     private fun handleEntityDamaged(msg: GameMessage.EntityDamagedMessage) {
         // Find the entity whose ID matches the target
         val entity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find { PlayerComponent.mapper[it]?.id == msg.targetId } ?: return
@@ -499,6 +501,8 @@ class GameScreen : KtxScreen {
 
     // Loads the new room from the server, updating the collision grid and player spawn points
     private fun loadNewRoom(mapId: Int) {
+        engine.getSystem(AttackSystem::class.java)?.setProcessing(true) // Re-enables combat for new rooms, not the lobby
+
         map.disposeSafely()
 
         val mapFile = "Maps/Room_$mapId.tmx" // Obtains the appropriate map ID from the message
@@ -512,50 +516,58 @@ class GameScreen : KtxScreen {
 
         val spawnPoints = setupCollisionGrid() // Sets up the new collision grid and spawn points
 
-        val playerEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find {
-            PlayerComponent.mapper[it]?.id == playerID
-        }
+        val playerEntities = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
 
-        // Sets the new spawn point and resets the player ready for the new room
-        if (playerEntity != null && spawnPoints.isNotEmpty()) {
-            // Sets the correct spawn point based on ID
-            val mySpawn = spawnPoints.getOrElse(playerID) {
-                spawnPoints.first()
-            }
-            val startX = mySpawn.x * Constants.UNIT_SCALE
-            val startY = mySpawn.y * Constants.UNIT_SCALE
+        playerEntities.forEach { entity ->
+            val id = PlayerComponent.mapper[entity]?.id ?: return@forEach
 
-            // Resets relevant player attributes
-            TransformComponent.mapper[playerEntity]?.position?.set(startX, startY)
-            MovementComponent.mapper[playerEntity]?.target?.set(startX, startY)
-            PathComponent.mapper[playerEntity]?.nodes?.clear()
-            AnimationComponent.mapper[playerEntity]?.currentState = "walk_down" // Base starting anim
+            // Sets the new spawn point and resets the players ready for the new room
+            if (id == playerID) {
+                // Sets the correct spawn point based on ID
+                val mySpawn = spawnPoints.getOrElse(playerID) {
+                    spawnPoints.first()
+                }
+                val startX = mySpawn.x * Constants.UNIT_SCALE
+                val startY = mySpawn.y * Constants.UNIT_SCALE
 
-            val socket = tcpSocket
-            // Syncs the collision grid and player spawn point
-            if (socket != null && socket.isConnected && !socket.isClosed) {
-                coroutineScope.launch(Dispatchers.IO) {
-                    try {
-                        val gridBytes = collisionGrid.map { if (it) 1.toByte() else 0.toByte() }.toByteArray() // Serialises the collision grid
-                        val mapMsg = GameMessage.MapDataMessage(gridBytes)
-                        val mapBytes = mapMsg.serialise()
-                        GameMessage.applyXor(mapBytes) // Encrypts the message
+                // Resets relevant local player's attributes
+                TransformComponent.mapper[entity]?.position?.set(startX, startY)
+                MovementComponent.mapper[entity]?.target?.set(startX, startY)
+                PathComponent.mapper[entity]?.nodes?.clear()
+                AnimationComponent.mapper[entity]?.currentState = "walk_down" // Base starting anim
 
-                        val moveMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
-                        val moveBytes = moveMsg.serialise()
-                        GameMessage.applyXor(moveBytes) // Encrypts the message
+                val socket = tcpSocket
+                // Syncs the collision grid and player spawn point
+                if (socket != null && socket.isConnected && !socket.isClosed) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            val gridBytes = collisionGrid.map { if (it) 1.toByte() else 0.toByte() }.toByteArray() // Serialises the collision grid
+                            val mapMsg = GameMessage.MapDataMessage(gridBytes)
+                            val mapBytes = mapMsg.serialise()
+                            GameMessage.applyXor(mapBytes) // Encrypts the message
 
-                        // Safely lock the stream and send both packets back-to-back
-                        synchronized(socket.getOutputStream()) {
-                            socket.getOutputStream().write(mapBytes)
-                            socket.getOutputStream().write(moveBytes)
-                            socket.getOutputStream().flush()
+                            val moveMsg = GameMessage.PlayerMoveMessage(playerID, startX, startY)
+                            val moveBytes = moveMsg.serialise()
+                            GameMessage.applyXor(moveBytes) // Encrypts the message
+
+                            // Safely lock the stream and send both packets back-to-back
+                            synchronized(socket.getOutputStream()) {
+                                socket.getOutputStream().write(mapBytes)
+                                socket.getOutputStream().write(moveBytes)
+                                socket.getOutputStream().flush()
+                            }
+                        } catch (e: Exception) {
+                            Gdx.app.error("NETWORK", "Failed to sync room: ${e.message}")
                         }
-                    } catch (e: Exception) {
-                        Gdx.app.error("NETWORK", "Failed to sync room: ${e.message}")
                     }
                 }
+            } else {
+                // Resets relevant networked player attributes,
+                TransformComponent.mapper[entity]?.position?.set(-10f, -10f)
+                MovementComponent.mapper[entity]?.target?.set(-10f, -10f)
+                PathComponent.mapper[entity]?.nodes?.clear()
             }
+
         }
     }
 
