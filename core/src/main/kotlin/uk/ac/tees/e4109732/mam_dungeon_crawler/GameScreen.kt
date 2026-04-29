@@ -3,6 +3,7 @@ package uk.ac.tees.e4109732.mam_dungeon_crawler
 import com.badlogic.ashley.core.Entity
 import com.badlogic.ashley.core.PooledEngine
 import com.badlogic.gdx.Gdx
+import com.badlogic.gdx.Gdx.app
 import com.badlogic.gdx.Gdx.input
 import com.badlogic.gdx.graphics.OrthographicCamera
 import com.badlogic.gdx.graphics.Texture
@@ -93,7 +94,7 @@ class GameScreen : KtxScreen {
 
             udpSocket.close()
         } catch (_: Exception) {
-            Gdx.app.error("NETWORK", "UDP Discovery failed, falling back to constant IP.")
+            app.error("NETWORK", "UDP Discovery failed, falling back to constant IP.")
         }
         return serverIp
     }
@@ -129,7 +130,7 @@ class GameScreen : KtxScreen {
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 val discoveredIP = discoverServerIP()
-                Gdx.app.log("NETWORK", "Connecting to $discoveredIP.")
+                app.log("NETWORK", "Connecting to {$discoveredIP}.")
                 // Creates a socket which attempts to connect to the server, it has a 5 second timeout before failing
                 val socket = Socket()
                 socket.connect(InetSocketAddress(discoveredIP, 4300), 5000)
@@ -150,7 +151,7 @@ class GameScreen : KtxScreen {
 
                 // Takes the 4 collected bytes (ensuring they're read the same way the server wrote them (little endian)) and combines them into an int
                 playerID = ByteBuffer.wrap(idBytes).order(ByteOrder.LITTLE_ENDIAN).int
-                Gdx.app.log("NETWORK", "Connected! Assigned ID: $playerID")
+                app.log("NETWORK", "Connected! Assigned ID: {$playerID}.")
 
                 // Sets up the initial position of the player for the server
                 val mySpawn = spawnPoints.getOrElse(playerID) { spawnPoints.first() }
@@ -158,7 +159,7 @@ class GameScreen : KtxScreen {
                 val startY = mySpawn.y * Constants.UNIT_SCALE
 
                 // Updates the render system with the local player's ID, adds the UI system once the player has an assigned ID, and creates the player
-                Gdx.app.postRunnable {
+                app.postRunnable {
                     engine.getSystem(RenderSystem::class.java).localPlayerId = playerID
                     engine.addSystem(UISystem(batch, hudCamera, atlas, playerID))
                     factory.createPlayer(playerID, startX, startY)
@@ -169,7 +170,6 @@ class GameScreen : KtxScreen {
                 val initialPosBytes = initialPosMsg.serialise()
                 GameMessage.applyXor(initialPosBytes) // Encrypts the message
                 tcpSocket?.getOutputStream()?.write(initialPosBytes)
-                Gdx.app.log("NETWORK", "Initial position synced: ($startX, $startY)")
 
                 val gridBytes = collisionGrid.map { if (it) 1.toByte() else 0.toByte() }.toByteArray()
                 val mapMsg = GameMessage.MapDataMessage(gridBytes)
@@ -177,10 +177,8 @@ class GameScreen : KtxScreen {
                 GameMessage.applyXor(mapBytes) // Encrypts the message
                 tcpSocket?.getOutputStream()?.write(mapBytes)
 
-                Gdx.app.log("NETWORK", "Map Data Synced: ${gridBytes.size} tiles")
-
                 // Adds the system once the ID is received, ensuring the correct player's attack is handled
-                Gdx.app.postRunnable {
+                app.postRunnable {
                     engine.addSystem(AttackSystem(playerID, factory, { lastServerTick }) { msg ->
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
@@ -188,9 +186,7 @@ class GameScreen : KtxScreen {
                                 GameMessage.applyXor(attackBytes) // Encrypts the message
 
                                 tcpSocket?.getOutputStream()?.write(attackBytes)
-                            } catch (e: Exception) {
-                                Gdx.app.error("NETWORK", "Failed to send attack: ${e.message}")
-                            }
+                            } catch (_: Exception) { }
                         }
                     })
 
@@ -199,7 +195,7 @@ class GameScreen : KtxScreen {
 
                 runNetworkListener(inputStream) // Once player ID is read the input stream is passed to this function to be used elsewhere
             } catch (e: Exception) {
-                Gdx.app.error("NETWORK", "Connection Lost: ${e.message}")
+                app.error("NETWORK", "Connection Lost: ${e.message}")
             }
         }
     }
@@ -316,7 +312,7 @@ class GameScreen : KtxScreen {
 
                 // If the message isn't null handles messages from the server
                 if (msg != null) {
-                    Gdx.app.postRunnable {
+                    app.postRunnable {
                         when (msg) {
                             is GameMessage.PlayerMoveMessage -> if (msg.id != playerID) handleRemoteMove(msg)
                             is GameMessage.PlayerAttackMessage -> if (msg.id != playerID) handleRemoteAttack(msg)
@@ -330,14 +326,14 @@ class GameScreen : KtxScreen {
                 }
             }
         } catch (e: Exception) {
-            Gdx.app.error("NETWORK", "Listener Lost: ${e.message}")
+            app.error("NETWORK", "Listener Lost: ${e.message}")
         }
     }
 
     // Handles the movement of remote players
     private fun handleRemoteMove(msg: GameMessage.PlayerMoveMessage) {
         // Moving player's is not thread safe, this moves it to be done so on the main thread at the start of the next frame
-        Gdx.app.postRunnable {
+        app.postRunnable {
             // Find the entity whose ID matches the one from the message
             val remoteEntity = engine.getEntitiesFor(allOf(PlayerComponent::class).get())
                 .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return@postRunnable
@@ -366,7 +362,7 @@ class GameScreen : KtxScreen {
                     else collisionGrid[y * Constants.MAP_WIDTH + x]
                 }
                 // Return to the main thread to apply the new path for the entity, as doing so on a thread is not safe
-                Gdx.app.postRunnable {
+                app.postRunnable {
                     PathComponent.mapper[remoteEntity]?.nodes?.apply {
                         // Clears the current path, replacing it with the new one
                         clear()
@@ -387,8 +383,6 @@ class GameScreen : KtxScreen {
 
         // Draw the visual ring at the remote player's location
         factory.createAOERing(pos.x, pos.y, attackComp.range)
-
-        Gdx.app.log("COMBAT", "Remote player ${msg.id} performed an attack.")
     }
 
     // Keeps clients in sync with the server's logic
@@ -402,8 +396,6 @@ class GameScreen : KtxScreen {
             if (entity != null) {
                 val transform = TransformComponent.mapper[entity]
                 val localPos = transform.position
-
-                Gdx.app.log("DEBUG_SYNC", "Drift: $localPos.dst2(serverPos) | Local: $localPos | Server: $serverPos")
 
                 // Local player prioritises local pathfinding, unless massively wrong
                 val isLocalPlayer = (id == playerID)
@@ -453,7 +445,7 @@ class GameScreen : KtxScreen {
             } else {
                 // The server knows someone we don't create them at the coords
                 factory.createPlayer(id, serverPos.x, serverPos.y)
-                Gdx.app.log("NETWORK", "New player $id synced into world.")
+                app.log("NETWORK", "New player: {$id}, synced into world.")
             }
         }
     }
@@ -464,10 +456,8 @@ class GameScreen : KtxScreen {
         val entity = engine.getEntitiesFor(allOf(PlayerComponent::class).get()).find { PlayerComponent.mapper[it]?.id == msg.targetId } ?: return
 
         val healthComponent = HealthComponent.mapper[entity]
-        if (healthComponent != null) {
+        if (healthComponent != null)
             healthComponent.currentHearts = msg.health // Updates the health with the authoritative value from the server
-            Gdx.app.log("COMBAT", "Entity ${msg.targetId} health sync: ${msg.health} hearts")
-        }
     }
 
     // Handles the state of buttons
@@ -568,9 +558,7 @@ class GameScreen : KtxScreen {
                                 socket.getOutputStream().write(moveBytes)
                                 socket.getOutputStream().flush()
                             }
-                        } catch (e: Exception) {
-                            Gdx.app.error("NETWORK", "Failed to sync room: ${e.message}")
-                        }
+                        } catch (_: Exception) { }
                     }
                 }
             } else {
@@ -645,7 +633,7 @@ class GameScreen : KtxScreen {
                                     socket.getOutputStream().flush()
                                 }
                             } catch (e: Exception) {
-                                Gdx.app.error("NETWORK", "Send Error: ${e.message}")
+                                app.error("NETWORK", "Send Error: ${e.message}")
                             }
                         }
                     }
@@ -679,7 +667,6 @@ class GameScreen : KtxScreen {
 
         // Launches a background coroutine, one optimised for CPU tasks to keep fps high, to run the pathfinding algorithm
         coroutineScope.launch(Dispatchers.Default) {
-            Gdx.app.log("DEBUG_SYNC", "CLIENT A* START: ($startX, $startY) to ($goalX, $goalY)")
             // Generates a new path, ensuring its within the grid and avoids obstacles
             val newPath = Pathfinding.findPath(startX, startY, goalX, goalY) { x, y ->
                 if (x !in 0 until Constants.MAP_WIDTH || y !in 0 until Constants.MAP_HEIGHT) true // Checks whether within grid
@@ -687,7 +674,7 @@ class GameScreen : KtxScreen {
             }
 
             // Return to the main thread to apply the new path for the entity, as doing so on a thread is not safe
-            Gdx.app.postRunnable {
+            app.postRunnable {
                 val pathComp = PathComponent.mapper[entity]
                 pathComp?.nodes?.apply {
                     // Clears the current path, replacing it with the new one
@@ -735,9 +722,7 @@ class GameScreen : KtxScreen {
                             socket.getOutputStream().write(moveBytes) // Sends the serialised message to the server
                             socket.getOutputStream().flush()
                         }
-                    } catch (e: Exception) {
-                        Gdx.app.error("NETWORK", "Send Error: ${e.message}")
-                    }
+                    } catch (_: Exception) { }
                 }
             }
         }
