@@ -214,11 +214,14 @@ class GameScreen : KtxScreen {
         val wallLayer = map.layers["Walls"] as? TiledMapTileLayer
         val doorLayer = map.layers["Doors_Closed"] as? TiledMapTileLayer
 
+        // Door is locked if the closed door layer is visible
+        val doorsLocked = doorLayer?.isVisible ?: false
+
         // Loops through the 2D tiled grid converting it to a 1D boolean array
         for (y in 0 until Constants.MAP_HEIGHT) {
             for (x in 0 until Constants.MAP_WIDTH) {
                 // Tiles are blocked if they contain an object of this layers
-                val isBlocked = wallLayer?.getCell(x, y) != null || doorLayer?.getCell(x, y) != null
+                val isBlocked = wallLayer?.getCell(x, y) != null || (doorsLocked && doorLayer.getCell(x, y) != null)
                 collisionGrid[y * Constants.MAP_WIDTH + x] = isBlocked // Turns the 2D tiled grid into a 1D boolean array
             }
         }
@@ -509,6 +512,10 @@ class GameScreen : KtxScreen {
         map = TmxMapLoader().load(mapFile)
 
         renderer.map = map
+
+        // Swap visible door layer - whilst enemies are not implemented
+        map.layers["Doors_Closed"]?.isVisible = false
+        map.layers["Doors_Open"]?.isVisible = true
 
         // Resets the collision grid
         for (i in collisionGrid.indices)
