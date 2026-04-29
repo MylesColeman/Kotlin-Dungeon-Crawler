@@ -85,8 +85,8 @@ class PlayerComponent : Component, Pool.Poolable {
     companion object { val mapper = mapperFor<PlayerComponent>() }
 }
 
-// AOE attack component, contains the cooldown between attacks and the range
-class AOEAttackComponent : Component, Pool.Poolable {
+// AoE attack component, contains the cooldown between attacks and the range
+class AoEAttackComponent : Component, Pool.Poolable {
     var range = 2f // Actual range handled on server, this is just used for effects/visualisation
 
     // Cooldown handled on server, kept here to ensure messages aren't being spammed
@@ -99,7 +99,7 @@ class AOEAttackComponent : Component, Pool.Poolable {
         cooldown = 0.5f
         currentCooldown = 0f
     }
-    companion object { val mapper = mapperFor<AOEAttackComponent>() }
+    companion object { val mapper = mapperFor<AoEAttackComponent>() }
 }
 
 // Physics component, contains the Box2D body

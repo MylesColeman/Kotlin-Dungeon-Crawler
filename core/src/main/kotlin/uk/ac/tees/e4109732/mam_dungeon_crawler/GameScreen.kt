@@ -379,10 +379,10 @@ class GameScreen : KtxScreen {
             .find { PlayerComponent.mapper[it]?.id == msg.id } ?: return
 
         val pos = TransformComponent.mapper[remoteEntity]?.position ?: return
-        val attackComp = AOEAttackComponent.mapper[remoteEntity] ?: return
+        val attackComp = AoEAttackComponent.mapper[remoteEntity] ?: return
 
         // Draw the visual ring at the remote player's location
-        factory.createAOERing(pos.x, pos.y, attackComp.range)
+        factory.createAoERing(pos.x, pos.y, attackComp.range)
     }
 
     // Keeps clients in sync with the server's logic

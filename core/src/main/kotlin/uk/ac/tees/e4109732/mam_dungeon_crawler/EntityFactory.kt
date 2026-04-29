@@ -45,7 +45,7 @@ class EntityFactory(private val engine: PooledEngine, private val atlas: Texture
         }
         with<PathComponent>()
         with<HealthComponent>()
-        with<AOEAttackComponent>()
+        with<AoEAttackComponent>()
         with<TextureComponent>()
         with<AnimationComponent> {
             // Creates the player animations
@@ -75,7 +75,7 @@ class EntityFactory(private val engine: PooledEngine, private val atlas: Texture
         return Animation(0.15f, frames, Animation.PlayMode.LOOP)
     }
 
-    fun createAOERing(centreX: Float, centreY: Float, range: Float) = engine.entity {
+    fun createAoERing(centreX: Float, centreY: Float, range: Float) = engine.entity {
         with<TransformComponent> {
             position.set(centreX, centreY)
             z = 0.5f // Behind player but above floor

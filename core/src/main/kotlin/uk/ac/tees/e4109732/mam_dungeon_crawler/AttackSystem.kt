@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 // Handles player attacks
 class AttackSystem(private val localPlayerID: Int, private val factory: EntityFactory, private val getTick: () -> Int,
                    private val onAttackRequest: (GameMessage.PlayerAttackMessage) -> Unit)
-    : IteratingSystem(allOf(PlayerComponent::class, AOEAttackComponent::class).get()){
+    : IteratingSystem(allOf(PlayerComponent::class, AoEAttackComponent::class).get()){
     private val gravity = FloatArray(3) // Gravity is always acting on the accelerometer, this is used to ignore it
     private val linearAcceleration = FloatArray(3) // Actual movement, with gravity subtracted
     private val alpha = 0.15f // How responsive to phone movements it is
@@ -18,7 +18,7 @@ class AttackSystem(private val localPlayerID: Int, private val factory: EntityFa
     // Checks for phone shakes
     override fun processEntity(entity: Entity, deltaTime: Float) {
         val playerComp = PlayerComponent.mapper[entity] ?: return
-        val attackComp = AOEAttackComponent.mapper[entity] ?: return
+        val attackComp = AoEAttackComponent.mapper[entity] ?: return
 
         val health = HealthComponent.mapper[entity]
         if (health != null && health.currentHearts <= 0) return // Player is dead, don't update
@@ -53,16 +53,16 @@ class AttackSystem(private val localPlayerID: Int, private val factory: EntityFa
 
         // Checks if the magnitude, scale of movement, has met the required threshold to initiate an attack
         if (magnitude > 12.0f) {
-            triggerAOEAttack(entity, attackComp)
+            triggerAoEAttack(entity, attackComp)
         }
     }
 
     // Starts the attack once the threshold is met
-    private fun triggerAOEAttack(player: Entity, attack: AOEAttackComponent) {
+    private fun triggerAoEAttack(player: Entity, attack: AoEAttackComponent) {
         attack.currentCooldown = attack.cooldown // Attacking - reset cooldown
         val playerPos = TransformComponent.mapper[player]?.position ?: return
 
-        factory.createAOERing(playerPos.x, playerPos.y, attack.range) // Creates the visual effect
+        factory.createAoERing(playerPos.x, playerPos.y, attack.range) // Creates the visual effect
 
         app.log("COMBAT", "Shake detected! Sending attack to server.")
 
