@@ -33,3 +33,10 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# C++ Server Build Artifacts
+*.o
+*.out
+*.exe
+server
+.vscode/
