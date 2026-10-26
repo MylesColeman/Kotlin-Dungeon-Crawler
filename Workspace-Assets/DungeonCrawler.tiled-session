@@ -1,0 +1,156 @@
+{
+    "activeFile": "Dungeon Crawler/assets/Maps/Lobby.tmx",
+    "expandedProjectPaths": [
+        "Dungeon Crawler/assets",
+        ".",
+        "Dungeon Crawler",
+        "Dungeon Crawler/assets/Maps"
+    ],
+    "file.lastUsedOpenFilter": "All Files (*)",
+    "fileStates": {
+        "/unihome2/scm-studs/e4109732/Downloads/MicroDungeon.tsx": {
+            "scaleInDock": 2,
+            "scaleInEditor": 5.5
+        },
+        "/unihome2/scm-studs/e4109732/Year 2/Semester 3/Mobile and Multiplayer/Downloads/MicroDungeon.tsx": {
+            "scaleInDock": 1
+        },
+        "Dungeon Crawler/assets/Maps/Lobby.tmx": {
+            "expandedObjectLayers": [
+                9,
+                8
+            ],
+            "scale": 6.3531249999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.0727988194786
+            }
+        },
+        "Dungeon Crawler/assets/Maps/MicroDungeon.tsx": {
+            "scaleInDock": 3,
+            "scaleInEditor": 5.5
+        },
+        "Dungeon Crawler/assets/Maps/PathfindingDemoRoom.tmx": {
+            "scale": 5.5,
+            "selectedLayer": 5,
+            "viewCenter": {
+                "x": 81.63636363636364,
+                "y": 37.45454545454545
+            }
+        },
+        "Dungeon Crawler/assets/Maps/Room_1.tmx": {
+            "expandedObjectLayers": [
+                3
+            ],
+            "scale": 6.3531249999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.072798819478606
+            }
+        },
+        "Dungeon Crawler/assets/Maps/Room_2": {
+            "scale": 6.3531249999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.0727988194786
+            }
+        },
+        "Dungeon Crawler/assets/Maps/Room_2.tmx": {
+            "expandedObjectLayers": [
+                6
+            ],
+            "scale": 6.3531249999999995,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.072798819478606
+            }
+        },
+        "Dungeon Crawler/assets/Maps/Room_3.tmx": {
+            "expandedObjectLayers": [
+                6
+            ],
+            "scale": 6.3531249999999995,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.072798819478606
+            }
+        },
+        "Dungeon Crawler/assets/Maps/Room_4.tmx": {
+            "expandedObjectLayers": [
+                5
+            ],
+            "scale": 6.3531249999999995,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.072798819478606
+            }
+        },
+        "Dungeon Crawler/assets/Maps/Room_5.tmx": {
+            "scale": 6.3531249999999995,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 79.96064928676833,
+                "y": 44.0727988194786
+            }
+        },
+        "DungeonCrawler.tmx": {
+            "scale": 5.5,
+            "selectedLayer": 4,
+            "viewCenter": {
+                "x": 70.36363636363636,
+                "y": 59.63636363636364
+            }
+        },
+        "PathfindingDemoRoom.tmx": {
+            "scale": 6.982499999999999,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 80.05728607232368,
+                "y": 43.967060508413894
+            }
+        }
+    },
+    "last.externalTilesetPath": "/unihome2/scm-studs/e4109732/Year 2/Semester 3/Mobile and Multiplayer/Dungeon Crawler/Dungeon Crawler/assets/Maps",
+    "last.imagePath": "/unihome2/scm-studs/e4109732/Year 2/Semester 3/Mobile and Multiplayer/Dungeon Crawler/Dungeon Crawler/assets/Maps",
+    "map.height": 11,
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 8,
+    "map.tileWidth": 8,
+    "map.width": 20,
+    "openFiles": [
+        "Dungeon Crawler/assets/Maps/Lobby.tmx",
+        "Dungeon Crawler/assets/Maps/Room_1.tmx",
+        "Dungeon Crawler/assets/Maps/Room_2.tmx",
+        "Dungeon Crawler/assets/Maps/Room_3.tmx",
+        "Dungeon Crawler/assets/Maps/Room_4.tmx",
+        "Dungeon Crawler/assets/Maps/Room_5.tmx",
+        "Dungeon Crawler/assets/Maps/MicroDungeon.tsx"
+    ],
+    "project": "DungeonCrawler.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "Dungeon Crawler/assets/Maps/MicroDungeon.tsx",
+        "Dungeon Crawler/assets/Maps/Room_5.tmx",
+        "Dungeon Crawler/assets/Maps/Room_4.tmx",
+        "Dungeon Crawler/assets/Maps/Room_3.tmx",
+        "Dungeon Crawler/assets/Maps/Room_2.tmx",
+        "Dungeon Crawler/assets/Maps/Room_1.tmx",
+        "Dungeon Crawler/assets/Maps/Lobby.tmx",
+        "Dungeon Crawler/assets/Maps/Room_2",
+        "Dungeon Crawler/assets/Maps/PathfindingDemoRoom.tmx",
+        "/unihome2/scm-studs/e4109732/Downloads/MicroDungeon.tsx",
+        "PathfindingDemoRoom.tmx",
+        "DungeonCrawler.tmx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 8,
+        "width": 8
+    }
+}
