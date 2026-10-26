@@ -39,3 +39,33 @@ For example, `core:clean` removes `build` folder only from the `core` project.
 
 # CPP-Game-Server-Dungeon-Crawler (WIP)
 CPP game server created for mobile/multiplayer Dungeon Crawler Project. 
+
+# MAM Dungeon Crawler
+
+## How to Run
+1. **Start the Server:** Navigate to the `server` folder and execute `chmod +x run_server.sh` followed by `./run_server.sh`.
+2. **Start the Clients:** Install and launch the provided `.apk` on two Android devices.
+
+## Controls
+* **Movement:** Tap a navigable tile on the screen to pathfind towards it. 
+* **Combat:** Shake the device to perform an AoE attack (Note: Combat is disabled in the Starting Lobby).
+
+## Gameplay Guide
+* **The Lobby:** To start the game, both players must navigate to the two floor buttons. If both buttons are pressed at the same time the door on the northern wall will open. Walking through the door will lead to a transition to a random dungeon room. 
+* **Death & Respawning:** If a player is killed they will respawn on the next room's load. 
+
+## Technical Notes & Troubleshooting
+* **Emulator Extended Controls:** Emulators struggle to register accelerometer input when using the extended controls menu. 
+* **Lab Networking:** The UDP discovery broadcast doesn't work in the labs, presumably being blocked by firewall; IP may need to be manually set in the `Constants.kt` file. 
+* **ADB Port Forwarding:** Similar commands may need to be used to allow communication:
+`adb -s <Device_ID> reverse tcp:4300 tcp:4300`
+`adb -s <Device_ID> reverse tcp:4301 tcp:4301`
+
+## References
+* ***KENNEY (2021)*** *Micro Roguelike. Available at: [https://kenney.nl/assets/micro-roguelike](https://kenney.nl/assets/micro-roguelike) (Accessed: 25 March 2026).*
+* ***Nicktuti (2025)*** *Mini Odyssey NPC Characters Pack1. Available at: [https://nicktuti.itch.io/mini-odyssey-ncp-characters-pack1](https://nicktuti.itch.io/mini-odyssey-ncp-characters-pack1) (Accessed: 25 March 2026).*
+* ***Yogendra Pratap Singh (Tech Architect) (2025)*** A\* Search Algorithm Explained with Kotlin: Graph. Available at: [https://medium.com/@ys.yogendra22/a-search-algorithm-explained-with-kotlin-graph-3b4c3c556f80](https://medium.com/@ys.yogendra22/a-search-algorithm-explained-with-kotlin-graph-3b4c3c556f80) (Accessed: 31 March 2026).
+
+## GitHub
+* **Client:** [Kotlin-Dungeon-Crawler](https://github.com/MylesColeman/Kotlin-Dungeon-Crawler)
+* **Server:** [CPP-Game-Server-Dungeon-Crawler](https://github.com/MylesColeman/CPP-Game-Server-Dungeon-Crawler)
